@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "Get Up Clippy",
+  "version": "1.0",
+  "description": "A Clippy-style mascot that nudges you to move after too much scrolling.",
+  "permissions": ["storage"],
+  "host_permissions": ["*://*.youtube.com/*", "*://*.instagram.com/*"],
+  "content_scripts": [{
+    "matches": ["*://*.youtube.com/*", "*://*.instagram.com/*"],
+    "js": ["content.js"]
+  }],
+  "action": { "default_popup": "popup.html" }
+}

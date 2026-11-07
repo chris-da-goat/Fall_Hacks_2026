@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { width: 240px; font-family: sans-serif; padding: 12px; }
+    h3 { margin: 0 0 10px; }
+    .stat { font-size: 22px; font-weight: bold; }
+    .label { color: #666; font-size: 12px; margin-bottom: 10px; }
+    input { width: 50px; }
+    button { margin-top: 8px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h3>📎 Get Up Clippy</h3>
+  <div class="stat" id="today">0 min</div>
+  <div class="label">watched today</div>
+  <div class="stat" id="ex">0</div>
+  <div class="label">exercise breaks taken</div>
+  <label>Nag me every <input type="number" id="limit" min="1" value="20"> min</label><br>
+  <button id="test">Test Clippy</button> <button id="reset">Reset mood</button>
+  <script src="popup.js"></script>
+</body>
+</html>
