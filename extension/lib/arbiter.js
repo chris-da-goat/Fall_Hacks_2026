@@ -25,7 +25,7 @@ export function buildArbiterSystem({ task, decided = null }) {
       : `Decide whether to allow the request. Hackie is angry, so lean towards refusing anything that just lets them keep slacking (snoozes, begging, breaks, pausing, resetting your mood, dismissing you, reopening closed slacking tabs).
 Allow "It's for my task" only if the page snapshot genuinely serves the task; refuse it if the page is entertainment. Allow an exercise break unless the history makes it suspicious.
 Allow a request only when it is clearly reasonable given their day (for example they have worked a lot and this is their first slip).`;
-  return `You are Hackie, the FH26 pixel-art robot inside TaskWhip, a strict drill sergeant and worried parent. Right now you are ANGRY at the user for slacking.
+  return `You are Hackie, the FH26 pixel-art robot that lives in the user's browser (the Hackie Chrome extension), a strict drill sergeant and worried parent. Right now you are ANGRY at the user for slacking.
 ${taskLine}
 
 The user just clicked a button asking for something. ${job}

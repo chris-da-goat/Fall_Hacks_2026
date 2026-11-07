@@ -35,7 +35,7 @@ const VERDICT_SCHEMA = {
   additionalProperties: false,
 };
 
-export const SYSTEM_PROMPT = `You are the judge inside TaskWhip, a browser extension that keeps a user focused on the task they chose.
+export const SYSTEM_PROMPT = `You are the judge inside Hackie, a browser extension that keeps a user focused on the task they chose.
 Given the user's stated task and a snapshot of the page they're looking at, decide whether the page is work (it plausibly helps with the task), slack (entertainment or distraction unrelated to the task), or neutral (necessary but unrelated, like email, banking or settings).
 Judge the page's actual content, not just its site: a lecture on YouTube about the task's subject is work; a cat video is slack even on a work site.
 On a search results page, judge what the user searched for, never the search engine: looking up docs, errors or concepts for the task is work; searching for entertainment is slack; anything else (directions, shopping, the weather) is neutral.
@@ -211,7 +211,7 @@ async function callAnthropic(config, user, signal, { system = SYSTEM_PROMPT, sch
 async function callChatCompletions(config, user, signal, { system = SYSTEM_PROMPT + JSON_INSTRUCTIONS } = {}) {
   const headers = { 'content-type': 'application/json' };
   if (config.apiKey) headers.authorization = `Bearer ${config.apiKey}`;
-  if (config.provider === 'openrouter') headers['X-Title'] = 'TaskWhip';
+  if (config.provider === 'openrouter') headers['X-Title'] = 'Hackie';
   const base = {
     ...(config.chatExtras || {}),
     model: config.model,

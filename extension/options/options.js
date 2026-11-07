@@ -291,11 +291,11 @@ async function exportData() {
   for (const c of Object.values(all.settings?.ai?.configs || {})) {
     if (c.apiKey) c.apiKey = '(redacted)';
   }
-  downloadJson(all, `taskwhip-export-${new Date().toISOString().slice(0, 10)}.json`);
+  downloadJson(all, `hackie-export-${new Date().toISOString().slice(0, 10)}.json`);
 }
 
 async function resetStats() {
-  if (!confirm('Reset all TaskWhip time stats? Your settings stay. This cannot be undone.')) return;
+  if (!confirm('Reset all Hackie time stats? Your settings stay. This cannot be undone.')) return;
   await send('options:resetStats');
   flash('Stats reset');
 }
@@ -304,7 +304,15 @@ async function resetStats() {
 // Settings file (export / import settings only)
 
 const SETTINGS_KEYS = ['zeroSlack', 'task', 'workSites', 'slackSites', 'thresholds', 'effects', 'ai', 'memory', 'debug', 'sensitiveSites'];
+// Settings files name the app that wrote them. Hackie was called TaskWhip before, so its old backups
+// still import; so do files with no app field (older exports, or a bare settings object).
+const SETTINGS_APP = 'Hackie';
+const SETTINGS_APPS = ['hackie', 'taskwhip'];
 const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+const foreignApp = (parsed) => {
+  const app = isPlainObject(parsed) && typeof parsed.app === 'string' ? parsed.app.trim() : '';
+  return app && !SETTINGS_APPS.includes(app.toLowerCase()) ? app : '';
+};
 
 function localDay(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -323,7 +331,7 @@ async function exportSettings() {
   if (!$('settingsExportKeys').checked) {
     for (const c of Object.values(copy.ai?.configs || {})) if (isPlainObject(c)) c.apiKey = '';
   }
-  downloadJson({ app: 'TaskWhip', kind: 'settings', version: 1, exportedAt: new Date().toISOString(), settings: copy }, `taskwhip-settings-${localDay()}.json`);
+  downloadJson({ app: SETTINGS_APP, kind: 'settings', version: 1, exportedAt: new Date().toISOString(), settings: copy }, `hackie-settings-${localDay()}.json`);
   fileMsg();
   flash('Exported');
 }
@@ -370,9 +378,14 @@ async function importSettings(file) {
     fileMsg(`${file.name} isn't valid JSON.`, true);
     return;
   }
+  const other = foreignApp(parsed);
+  if (other) {
+    fileMsg(`${file.name} holds settings for ${other}, not Hackie.`, true);
+    return;
+  }
   const incoming = isPlainObject(parsed) && isPlainObject(parsed.settings) ? parsed.settings : parsed;
   if (!isPlainObject(incoming) || !SETTINGS_KEYS.some((k) => Object.hasOwn(incoming, k))) {
-    fileMsg(`${file.name} doesn't look like TaskWhip settings (no task, site lists, thresholds or AI settings in it).`, true);
+    fileMsg(`${file.name} doesn't look like Hackie settings (no task, site lists, thresholds or AI settings in it).`, true);
     return;
   }
   const next = importedSettings(incoming);

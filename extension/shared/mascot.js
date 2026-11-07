@@ -15,6 +15,9 @@
     angry: [1, 2, 3, 4, 5, 6].map((i) => `assets/sprites/angry-${i}.png`),
   };
   const ART_FILES = [ART.idle, ART.look, ART.eyeL, ART.eyeR, ...ART.angry];
+  // The team's font (Inter ExtraBold). On web pages it arrives with the art as a data: URL.
+  const FONT = 'assets/fonts/inter-latin-800-normal.woff2';
+  const FONT_FAMILY = 'HackieInter';
 
   // The team's V3 crop of the 64x64 sprites (a little room at the top and sides for steam puffs).
   const CROP = { x: 4, y: 3, w: 50, h: 48 };
@@ -65,6 +68,38 @@
     return BLANK;
   }
   const gifUrl = () => artUrl(ART.idle);
+
+  /**
+   * Install Inter ExtraBold as "HackieInter" for this document (works inside shadow roots too).
+   * Uses the bytes, not a URL, so the page's CSP and its service worker never see a request.
+   * @returns {Promise<boolean>} true once the font is ready.
+   */
+  let fontPromise = null;
+  function installFont() {
+    if (fontPromise) return fontPromise;
+    fontPromise = (async () => {
+      try {
+        if (typeof FontFace === 'undefined' || !globalThis.document?.fonts) return false;
+        let bytes = null;
+        const url = data[FONT];
+        if (url && url.startsWith('data:')) {
+          const bin = atob(url.slice(url.indexOf(',') + 1));
+          bytes = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        } else if (inExtensionPage()) {
+          bytes = new Uint8Array(await (await fetch(chrome.runtime.getURL(FONT))).arrayBuffer());
+        }
+        if (!bytes) return false;
+        const face = new FontFace(FONT_FAMILY, bytes.buffer, { weight: '100 900', style: 'normal' });
+        await face.load();
+        document.fonts.add(face);
+        return true;
+      } catch {
+        return false;
+      }
+    })();
+    return fontPromise;
+  }
 
   // The whip lives in a 120x120 viewBox laid over the sprite; the hand is on Hackie's left side.
   const WHIP =
@@ -167,7 +202,7 @@
     return ['stern', 'worried', 'angry', 'furious'][level] || 'stern';
   }
 
-  const Hackie = { html, svg: html, moodForLevel, lookAt, useArt, hasArt, artUrl, gifUrl, ART, ART_FILES, CROP, EYES, BADGE, IDLE_MOODS };
+  const Hackie = { html, svg: html, moodForLevel, lookAt, useArt, hasArt, artUrl, gifUrl, installFont, ART, ART_FILES, FONT, FONT_FAMILY, CROP, EYES, BADGE, IDLE_MOODS };
   globalThis.Hackie = Hackie;
   // Older call sites used the tomato's name; keep them working.
   globalThis.TaskWhipPomo = Hackie;

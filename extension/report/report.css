@@ -1,96 +1,172 @@
+/* Report page in the team's Hackie look: Hackie on white above a flat teal panel with ears,
+   teal KPI tiles, and blocks with a teal header over a light teal body. Red = slacking,
+   green = work, grey = neutral, as everywhere else. */
+
+body {
+  min-height: 100vh;
+  font-family: var(--font-text);
+  --track: rgba(21, 52, 60, 0.1); /* empty bar / rank track on the teal tint */
+}
+@media (prefers-color-scheme: dark) {
+  body {
+    --track: rgba(255, 255, 255, 0.08);
+  }
+}
+
 .wrap {
   max-width: 960px;
   margin: 0 auto;
-  padding: 32px 20px 64px;
+  padding: 26px 20px 64px;
 }
+
+/* ---------- Hero: Hackie on white, sitting on the teal panel's ears ---------- */
 
 .head {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 18px;
-  margin-bottom: 22px;
+  margin-bottom: 18px;
 }
-/* Hackie draws into a square box. */
+/* A square sprite box (150px = 3x the pixel art) with room on both sides for the whip. */
 .head .hackie {
-  width: 84px;
-  height: 84px;
+  width: 278px;
+  height: 150px;
+  padding: 0 64px;
   flex: none;
-  --hk-badge-size: 20px;
+  --hk-badge-size: 30px;
+}
+.head-panel {
+  align-self: stretch;
+  margin-top: 14px;
+  padding: 22px 32px 26px;
+  background: var(--panel);
+  color: var(--on-panel);
+  border-radius: 0 0 var(--radius) var(--radius);
+  text-align: center;
+  font-family: var(--font-display);
+  font-weight: 800;
 }
 .head h1 {
-  margin: 0 0 4px;
-  font-size: 24px;
-  letter-spacing: -0.02em;
+  margin: 0 0 6px;
+  font-size: 28px;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
 }
 .verdict {
   margin: 0;
-  color: var(--muted);
+  color: var(--on-panel-muted);
   font-size: 15px;
 }
+
+/* ---------- KPI tiles: flat teal, white ExtraBold ---------- */
 
 .kpis {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 .kpi {
-  padding: 14px 16px;
+  padding: 14px 16px 15px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--on-panel);
+  font-family: var(--font-display);
+  font-weight: 800;
 }
 .kpi span {
-  display: block;
-  color: var(--muted);
-  font-size: 12.5px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--on-panel-muted);
+  font-size: 13px;
 }
 .kpi b {
-  font-size: 26px;
-  font-weight: 750;
-  letter-spacing: -0.02em;
+  display: block;
+  margin: 2px 0 1px;
+  font-size: 28px;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
 }
 .kpi small {
   display: block;
-  color: var(--faint);
+  color: var(--on-panel-muted);
+  opacity: 0.85;
   font-size: 12px;
 }
-.kpi.work b {
-  color: var(--leaf);
+/* Work and slacking tiles carry their data color as a ringed dot next to the label. */
+.kpi.work span::before,
+.kpi.slack span::before {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 2px solid var(--on-panel);
 }
-.kpi.slack b {
-  color: var(--tomato-deep);
+.kpi.work span::before {
+  background: var(--leaf);
+}
+.kpi.slack span::before {
+  background: var(--tomato);
 }
 
+/* ---------- Blocks: teal header strip over a light teal body ---------- */
+
 .block {
-  padding: 18px 20px;
-  margin-bottom: 16px;
+  padding: 0 20px 20px;
+  margin-bottom: 18px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  box-shadow: none;
+}
+.block > h2,
+.block-head {
+  margin: 0 -20px 16px;
+  padding: 12px 20px;
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--panel);
+  color: var(--on-panel);
 }
 .block h2 {
-  margin: 0 0 12px;
-  font-size: 15px;
+  font-size: 16px;
+  line-height: 1.3;
 }
 .block-head {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
-  gap: 12px;
+  align-items: center;
+  gap: 8px 12px;
   flex-wrap: wrap;
+}
+.block-head h2 {
+  margin: 0;
 }
 .legend {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
-  color: var(--muted);
-  font-size: 12.5px;
+  color: var(--on-panel);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 13px;
 }
 .sw {
-  width: 10px;
-  height: 10px;
-  border-radius: 3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
   display: inline-block;
 }
-.sw + .sw,
+/* Swatches on teal get a white ring so the data colors stay visible. */
+.legend .sw {
+  border: 2px solid var(--on-panel);
+}
 .legend .sw:not(:first-child) {
-  margin-left: 8px;
+  margin-left: 10px;
 }
 .sw.work,
 .seg.w {
@@ -103,8 +179,12 @@
 .sw.neutral,
 .seg.n {
   background: var(--neutral);
+}
+.seg.n {
   opacity: 0.55;
 }
+
+/* ---------- 14-day stacked bar chart ---------- */
 
 .chart {
   display: grid;
@@ -112,7 +192,7 @@
   gap: 8px;
   height: 220px;
   align-items: end;
-  padding-top: 8px;
+  padding-top: 4px;
 }
 .bar {
   display: flex;
@@ -129,8 +209,8 @@
   flex-direction: column-reverse;
   border-radius: 6px 6px 3px 3px;
   overflow: hidden;
-  min-height: 2px;
-  background: var(--surface-2);
+  min-height: 3px;
+  background: var(--track);
 }
 .seg {
   display: block;
@@ -138,18 +218,25 @@
 }
 .bar .lbl {
   font-size: 11px;
-  color: var(--faint);
+  color: var(--muted);
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 .bar.today .lbl {
-  color: var(--fg);
-  font-weight: 700;
+  color: var(--on-panel);
+  background: var(--panel);
+  border-radius: 99px;
+  padding: 0 6px;
+  font-family: var(--font-display);
+  font-weight: 800;
 }
+
+/* ---------- Site rankings ---------- */
 
 .cols {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: 18px;
 }
 .rank {
   list-style: none;
@@ -157,16 +244,16 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 .rank li {
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 4px 10px;
-  font-size: 13px;
+  gap: 5px 10px;
+  font-size: 13.5px;
 }
 .rank .name {
-  font-weight: 600;
+  font-weight: 650;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -177,9 +264,9 @@
 }
 .rank .track {
   grid-column: 1 / -1;
-  height: 6px;
+  height: 8px;
   border-radius: 99px;
-  background: var(--surface-2);
+  background: var(--track);
   overflow: hidden;
 }
 .rank .track i {
@@ -192,6 +279,11 @@
   font-size: 13px;
 }
 
+/* ---------- Hackie's log ---------- */
+
+.log-scroll {
+  overflow-x: auto;
+}
 .log {
   width: 100%;
   border-collapse: collapse;
@@ -200,26 +292,42 @@
 }
 .log th {
   text-align: right;
-  color: var(--faint);
-  font-weight: 600;
+  color: var(--brand-ink);
+  font-family: var(--font-display);
+  font-weight: 800;
   font-size: 12px;
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--line);
+  padding: 4px 8px 8px;
+  border-bottom: 1.5px solid var(--line);
+  white-space: nowrap;
 }
 .log td {
   text-align: right;
   padding: 7px 8px;
   border-bottom: 1px solid var(--line);
 }
+.log tbody tr:last-child td {
+  border-bottom: 0;
+}
 .log th:first-child,
 .log td:first-child {
   text-align: left;
 }
+.log td:first-child {
+  font-weight: 650;
+}
 .log tr.blank td {
-  color: var(--faint);
+  color: var(--muted);
+  font-weight: 400;
+  opacity: 0.7;
 }
 
 @media (max-width: 720px) {
+  .head-panel {
+    padding: 18px 18px 22px;
+  }
+  .head h1 {
+    font-size: 23px;
+  }
   .cols {
     grid-template-columns: 1fr;
   }
@@ -228,6 +336,9 @@
   }
   .bar .lbl {
     font-size: 9px;
+  }
+  .bar.today .lbl {
+    padding: 0 3px;
   }
   .log {
     font-size: 12px;

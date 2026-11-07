@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>TaskWhip report</title>
+    <title>Hackie report</title>
     <link rel="stylesheet" href="../shared/theme.css" />
     <link rel="stylesheet" href="report.css" />
     <script src="../shared/mascot.js"></script>
@@ -13,7 +13,7 @@
     <div class="wrap">
       <header class="head">
         <div class="hackie" id="hackie"></div>
-        <div>
+        <div class="head-panel eared">
           <h1>Your last two weeks, according to Hackie</h1>
           <p id="verdict" class="verdict"></p>
         </div>
@@ -42,12 +42,14 @@
 
       <section class="card block">
         <h2>Hackie's log</h2>
-        <table class="log">
-          <thead>
-            <tr><th>Day</th><th>Work</th><th>Slacking</th><th>Focus</th><th>Nudges</th><th>Whips</th><th>Lockdowns</th><th>Comebacks</th></tr>
-          </thead>
-          <tbody id="log"></tbody>
-        </table>
+        <div class="log-scroll">
+          <table class="log">
+            <thead>
+              <tr><th>Day</th><th>Work</th><th>Slacking</th><th>Focus</th><th>Nudges</th><th>Whips</th><th>Lockdowns</th><th>Comebacks</th></tr>
+            </thead>
+            <tbody id="log"></tbody>
+          </table>
+        </div>
       </section>
     </div>
   </body>

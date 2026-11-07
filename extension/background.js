@@ -1,4 +1,4 @@
-// TaskWhip service worker.
+// Hackie service worker.
 //
 // Every time something changes (tab switch, navigation, focus, idle, 30s alarm) we:
 //   1. bank the seconds spent on the previous page into today's stats,
@@ -260,7 +260,7 @@ async function getActive(settings) {
   if (!win) return null;
   let focused = Boolean(win.focused);
   let popupOpen = false;
-  // Opening TaskWhip's toolbar popup takes focus away from the browser window, but the
+  // Opening Hackie's toolbar popup takes focus away from the browser window, but the
   // user is obviously still here.
   if (!focused && chrome.runtime.getContexts) {
     try {
@@ -439,16 +439,16 @@ async function updateBadge(state, decision) {
   const cur = state.current;
   let text = '';
   let color = '#8b8d98';
-  let title = 'TaskWhip: not tracking right now';
+  let title = 'Hackie: not tracking right now';
   if (cur?.category === 'slack') {
     const mins = Math.floor(state.streak.slack / 60);
     text = decision.snoozed ? 'zz' : `${mins}m`;
     color = decision.snoozed ? '#8b8d98' : decision.level >= 2 ? '#c4271e' : '#e5484d';
-    title = `TaskWhip: slacking on ${siteName(cur.domain)} for ${mins} min`;
+    title = `Hackie: slacking on ${siteName(cur.domain)} for ${mins} min`;
   } else if (cur?.category === 'work') {
-    title = `TaskWhip: working on ${siteName(cur.domain)}`;
+    title = `Hackie: working on ${siteName(cur.domain)}`;
   } else if (cur) {
-    title = `TaskWhip: ${siteName(cur.domain)} (neutral)`;
+    title = `Hackie: ${siteName(cur.domain)} (neutral)`;
   }
   await chrome.action.setBadgeText({ text });
   await chrome.action.setBadgeBackgroundColor({ color });
@@ -1103,7 +1103,7 @@ async function agentContext(settings) {
 async function askHackie(question) {
   const settings = await loadSettings();
   if (!aiConfigured(settings)) {
-    return { ok: false, error: 'Set up an AI provider and key in TaskWhip settings (AI section) to chat with Hackie.' };
+    return { ok: false, error: "Set up an AI provider and key in Hackie's settings (AI section) to chat with him." };
   }
   const { agentChat = [] } = await chrome.storage.session.get('agentChat');
   const started = Date.now();
@@ -1909,13 +1909,14 @@ async function handleAppeal(msg, tab) {
 let artPromise = null;
 function loadArt() {
   artPromise ||= Promise.all(
-    globalThis.Hackie.ART_FILES.map(async (path) => {
+    [...globalThis.Hackie.ART_FILES, globalThis.Hackie.FONT].map(async (path) => {
       const res = await fetch(chrome.runtime.getURL(path));
       if (!res.ok) throw new Error(`${path}: HTTP ${res.status}`);
       const bytes = new Uint8Array(await res.arrayBuffer());
       let bin = '';
       for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-      return [path, `data:${path.endsWith('.gif') ? 'image/gif' : 'image/png'};base64,${btoa(bin)}`];
+      const type = path.endsWith('.gif') ? 'image/gif' : path.endsWith('.woff2') ? 'font/woff2' : 'image/png';
+      return [path, `data:${type};base64,${btoa(bin)}`];
     }),
   )
     .then(Object.fromEntries)

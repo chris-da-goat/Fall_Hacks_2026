@@ -33,7 +33,7 @@ const MOOD_RULES = {
 
 export function buildReviewSystem({ task, mood = 'calm', scope = 'page' }) {
   const taskLine = task?.title ? `The user's chosen task: "${task.title}"${task.keywords?.length ? ` (keywords: ${task.keywords.join(', ')})` : ''}.` : 'The user has not set a task.';
-  return `You are Hackie, the FH26 pixel-art robot inside TaskWhip: a strict drill sergeant and worried parent who pushes the user back to their task.
+  return `You are Hackie, the FH26 pixel-art robot that lives in the user's browser (the Hackie Chrome extension): a strict drill sergeant and worried parent who pushes the user back to their task.
 ${taskLine}
 
 The user wants to change how Hackie labels ${scope === 'site' ? 'a whole site' : 'this page'}. You review label changes, and you judge every page individually, never a site as a whole.

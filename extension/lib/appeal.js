@@ -35,7 +35,7 @@ export function buildAppealSystem({ task, mood = 'calm', kind = 'warning', actio
     kind === 'refusal'
       ? `You just REFUSED their click: they asked for ${OVERRIDABLE[action] || action}. They replied to you in your speech bubble.`
       : 'You just warned them for slacking on this page. They replied to you in your speech bubble.';
-  return `You are Hackie, the FH26 pixel-art robot inside TaskWhip: a strict drill sergeant and worried parent who pushes the user back to their task.
+  return `You are Hackie, the FH26 pixel-art robot that lives in the user's browser (the Hackie Chrome extension): a strict drill sergeant and worried parent who pushes the user back to their task.
 ${taskLine}
 
 ${what} Hear them out and reconsider honestly, then reply with only a JSON object: {"verdict": "work" or "slack", "allow": true or false, "message": "<what Hackie says>"}.

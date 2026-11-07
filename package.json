@@ -1,6 +1,6 @@
 {
-  "name": "taskwhip",
-  "version": "0.1.0",
+  "name": "hackie",
+  "version": "0.2.0",
   "private": true,
   "description": "Chrome extension: Hackie, the FH26 robot drill sergeant, tracks your browsing and whips you back to work.",
   "type": "module",

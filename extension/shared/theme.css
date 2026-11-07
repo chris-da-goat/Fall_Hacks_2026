@@ -13,55 +13,71 @@
 
 :root {
   color-scheme: light dark;
-  --bg: #fbf8f4;
+  /* The team's "Hackie" look (Figma "Hackie Browser Extension"): flat teal panels, white
+     Inter ExtraBold text, no borders or shadows. */
+  --panel: #247287; /* teal: bubbles, pills, panels, the popup's panel */
+  --panel-deep: #1b5a6b;
+  --on-panel: #ffffff;
+  --on-panel-muted: rgba(255, 255, 255, 0.85);
+  --on-panel-soft: rgba(255, 255, 255, 0.2); /* buttons and inputs on teal */
+  --on-panel-hover: rgba(255, 255, 255, 0.35);
+  --bg: #ffffff;
   --surface: #ffffff;
-  --surface-2: #f4efe9;
-  --fg: #24201d;
-  --muted: #6f6861;
-  --faint: #a39b93;
-  --line: rgba(36, 32, 29, 0.1);
-  /* Brand orange (buttons, focus rings, links, selected states). */
-  --brand: #ff5309;
-  --brand-deep: #e04500;
-  --brand-soft: #ffe6da;
-  --brand-ink: #c2410c; /* brand-colored text on the page background (4.9:1) */
-  /* Red is only the "slacking" category color (pills, bars, charts). */
+  --surface-2: #eaf3f5;
+  --fg: #15343c;
+  --muted: #557079;
+  --faint: #8fa6ad;
+  --line: rgba(36, 114, 135, 0.18);
+  /* Brand = the team's teal (buttons, focus rings, links, selected states). */
+  --brand: #247287;
+  --brand-deep: #1b5a6b;
+  --brand-soft: #e1eff2;
+  --brand-ink: #1d6577; /* teal text on white */
+  /* Data colors only: red = slacking, green = work. */
   --tomato: #e5484d;
   --tomato-deep: #c4271e;
   --tomato-soft: #fde8e7;
   --leaf: #2f9e57;
   --leaf-soft: #e2f4e8;
-  --neutral: #9a938c;
-  --neutral-soft: #efebe6;
+  --neutral: #8a9a9f;
+  --neutral-soft: #edf2f3;
   --amber: #c27803;
-  --radius: 14px;
-  --shadow: 0 1px 2px rgba(36, 32, 29, 0.05), 0 6px 18px rgba(36, 32, 29, 0.06);
-  --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --radius: 12px;
+  --shadow: none;
+  --font: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   --font-display: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  /* Long-form copy (hints, help text, form values). Only Inter ExtraBold ships, so pages with
+     paragraphs set their body text in this and keep Inter for headings, labels and teal panels. */
+  --font-text: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  /* The quarter-ellipse "ears" on the team's teal panel (see .eared). */
+  --ear-w: 30px;
+  --ear-h: 24px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #181514;
-    --surface: #221e1d;
-    --surface-2: #2b2625;
-    --fg: #f6efe9;
-    --muted: #b0a69e;
-    --faint: #7d746d;
-    --line: rgba(255, 255, 255, 0.1);
-    --brand: #ff5309; /* 5.6:1 on the dark background */
-    --brand-deep: #e04500;
-    --brand-soft: rgba(255, 83, 9, 0.16);
-    --brand-ink: #ff8a52; /* 7.8:1 on the dark background */
+    --panel: #247287;
+    --panel-deep: #1b5a6b;
+    --bg: #0e1c20;
+    --surface: #132a30;
+    --surface-2: #19353c;
+    --fg: #e9f3f5;
+    --muted: #a2bac1;
+    --faint: #6e888f;
+    --line: rgba(255, 255, 255, 0.12);
+    --brand: #2b86a0;
+    --brand-deep: #247287;
+    --brand-soft: rgba(36, 114, 135, 0.28);
+    --brand-ink: #7ccbdd;
     --tomato: #f05a5f;
     --tomato-deep: #e5484d;
     --tomato-soft: rgba(240, 90, 95, 0.16);
     --leaf: #3dbb6c;
     --leaf-soft: rgba(61, 187, 108, 0.15);
-    --neutral: #8f8780;
+    --neutral: #7f9399;
     --neutral-soft: rgba(255, 255, 255, 0.07);
     --amber: #f3a93b;
-    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 18px rgba(0, 0, 0, 0.25);
+    --shadow: none;
   }
 }
 
@@ -193,6 +209,30 @@ h3,
 
 .num {
   font-variant-numeric: tabular-nums;
+}
+
+/* The team's signature panel: two quarter-ellipse "ears" rise off the top corners and take the
+   panel's own background. Leave the panel's top corners square. */
+.eared {
+  position: relative;
+}
+.eared::before,
+.eared::after {
+  content: "";
+  position: absolute;
+  top: calc(var(--ear-h) * -1);
+  width: var(--ear-w);
+  height: var(--ear-h);
+  background: inherit;
+  pointer-events: none;
+}
+.eared::before {
+  left: 0;
+  border-top-right-radius: 100% 100%;
+}
+.eared::after {
+  right: 0;
+  border-top-left-radius: 100% 100%;
 }
 
 .sr-only {

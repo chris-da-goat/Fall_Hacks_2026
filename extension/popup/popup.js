@@ -95,7 +95,7 @@ function renderAvatar() {
   let mood = 'happy'; // working or idle
   if (cur?.tracked && cur.category === 'slack') mood = Hackie.moodForLevel(Math.max(1, data.decision.level));
   else if (cur?.tracked && cur.category === 'neutral') mood = 'stern';
-  if ((data.snoozeCount || 0) > 3) mood = 'furious'; // until the snooze run ends or "Reset mood"
+  if ((data.snoozeCount || 0) > 3) mood = 'furious'; // until the snooze run ends or "Reset Mood"
   const { level } = angerState();
   const angerMood = level >= 3 ? 'furious' : level >= 2 ? 'angry' : '';
   if (MOOD_RANK.indexOf(angerMood) > MOOD_RANK.indexOf(mood)) mood = angerMood;
@@ -121,8 +121,8 @@ function renderAnger() {
   pill.classList.toggle('furious', furious);
   const what = overridesOn()
     ? furious
-      ? 'He refuses breaks, pausing, Reset mood and Restore outright.'
-      : 'He may refuse breaks, pausing, Reset mood and Restore. The AI decides.'
+      ? 'He refuses breaks, pausing, Reset Mood and Restore outright.'
+      : 'He may refuse breaks, pausing, Reset Mood and Restore. The AI decides.'
     : '';
   const title = [`${furious ? 'Hackie is furious' : 'Hackie is angry'}${reasons.length ? `: ${reasons.join('; ')}` : ''}.`, what].filter(Boolean).join('\n');
   pill.title = title;
@@ -223,7 +223,7 @@ function renderDebug() {
   const why = last?.why || 'No decision recorded yet.';
   $('dbgWhy').textContent = why;
   const recent = (dbg.lines || []).slice(0, 6);
-  line.title = [why, ...(recent.length ? ['', 'Recent decisions:', ...recent] : []), ...(dbg.version ? ['', `TaskWhip v${dbg.version}`] : [])].join('\n');
+  line.title = [why, ...(recent.length ? ['', 'Recent decisions:', ...recent] : []), ...(dbg.version ? ['', `Hackie v${dbg.version}`] : [])].join('\n');
 }
 
 function renderStreak() {
@@ -272,7 +272,7 @@ function renderSnoozes() {
   beg.title = `Times you begged for more time during a lockdown.${actions?.closeTabs && limit ? ` After ${limit}, Hackie may close slacking tabs.` : ''}`;
 }
 
-// The Reset mood link (it lives in the snooze line): disabled while Hackie decides, flagged when he may refuse.
+// The Reset Mood link (it lives in the snooze line): disabled while Hackie decides, flagged when he may refuse.
 function renderResetMood() {
   const btn = $('resetMood');
   btn.disabled = Boolean(pending);
@@ -369,7 +369,7 @@ function renderToday() {
   renderNudge();
 }
 
-// "Nudge me after [N] min of slacking" (settings.thresholds.nudgeAfterMin; 0 = off).
+// "Nag me after [N] min of slacking" (settings.thresholds.nudgeAfterMin; 0 = off).
 function renderNudge() {
   const input = $('nudgeInput');
   const current = data.settings.thresholds.nudgeAfterMin;
@@ -744,7 +744,7 @@ function setSees(open) {
 }
 
 // ---------------------------------------------------------------------------
-// Refusable clicks (break, pause, Reset mood, Restore): "Hackie is deciding…" while the service
+// Refusable clicks (break, pause, Reset Mood, Restore): "Hackie is deciding…" while the service
 // worker (maybe the AI) decides, then Hackie's angry speech if he says no. State is left alone on a refusal.
 
 // Sends one refusable click. Returns the response, or null if another click is still waiting for a verdict.

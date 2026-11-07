@@ -1,6 +1,6 @@
-# TaskWhip
+# Hackie
 
-A Chrome extension starring **Hackie**, the team's FH26 pixel robot (all of his art lives in [`extension/assets/`](extension/assets)): part drill sergeant, part worried parent. Hackie reads the page you're on and tracks how long you spend on work vs. slacking sites. On slacking sites it strolls along the edges of your screen, nags you to get back to your task or get up and move, and gets steadily less polite the longer you drift:
+**Hackie** is a Chrome extension, and the team's FH26 pixel robot who lives in it (all of his art lives in [`extension/assets/`](extension/assets)): part drill sergeant, part worried parent. Hackie reads the page you're on and tracks how long you spend on work vs. slacking sites. On slacking sites it strolls along the edges of your screen, nags you to get back to your task or get up and move, and gets steadily less polite the longer you drift:
 
 | Slack streak | What Hackie does |
 | --- | --- |
@@ -27,21 +27,28 @@ All of Hackie's art lives in **`extension/assets/`**, and nothing else in the re
 | `design/FH2026DESIGN-1.png`, `FH2026DESIGN-2.png` | The team's design drafts of those two faces (reference only) |
 | `fonts/inter-latin-800-normal.woff2` | Inter ExtraBold for the popup, settings and report |
 
-These are the team's files from `hackie V3.zip`. The loose copies that used to sit at the repo root were byte-for-byte duplicates and have been removed. To add or change art, put it in `extension/assets/` and list it in `ART` at the top of [`extension/shared/mascot.js`](extension/shared/mascot.js). Everything that draws Hackie reads that list, and so does the service worker.
+These are the team's files from `hackie V3.zip` (`hackie V4.zip` has the same art). The loose copies that used to sit at the repo root were byte-for-byte duplicates and have been removed. To add or change art, put it in `extension/assets/` and list it in `ART` at the top of [`extension/shared/mascot.js`](extension/shared/mascot.js). Everything that draws Hackie reads that list, and so does the service worker.
 
 Web pages never load files from the extension. The service worker reads the art once and hands it to pages as `data:` URLs. YouTube's page logs every `chrome-extension://` load as *"Unsafe attempt to load URL … Domains, protocols and ports must match"*, and with no `web_accessible_resources`, sites also can't probe for the extension.
 
 ### Where this came from
 
-This merges two team prototypes:
+Hackie is the merge of two team prototypes:
 
-- **TaskWhip**: work vs. slacking classification on every site, escalation with whip and lockdown, stats and reports, the AI judge, Ask Hackie and debug mode, and sensitive sites.
-- **Get Up Clippy / Get Up Hackie**, by the rest of the team: the edge-walking mascot, random expressions and hover curiosity, the report panel, exercise nags with the "I did it!" counter, shrinking snoozes and the angry mom, the "Run" test button and watch-time slider, plus the Hackie GIF, the orange (`#ff5309`) and Inter ExtraBold look from the Figma popup.
+- **Get Up Hackie** (earlier "Get Up Clippy"), the rest of the team's extension, gave Hackie his look and his name: flat teal panels, Inter ExtraBold, and the pixel-art Hackie with hover eyes, angry frames and drag-to-move. It also brought the edge-walking mascot, random expressions and hover curiosity, the report panel, exercise nags with the "I did it!" counter, shrinking snoozes and the angry mom, and the "Run" test button and watch-time slider.
+- **TaskWhip** is the engine:
+  - work vs. slacking classification on every site, with escalation (whip and lockdown), stats and reports;
+  - the AI judge, Ask Hackie and debug mode;
+  - memory and the per-event AI;
+  - angry Hackie overriding your clicks, replies in the bubble and AI label review;
+  - zero-slack mode, persistent lockdowns, per-query search judging and sensitive sites.
+
+There is now **one** extension: load it unpacked from `extension/` (see below). The old root-level copy of Get Up Hackie (`manifest.json`, `content.js`, `popup.*`, `sprites/`, `hackie V4/`) has been removed; its art lives on in `extension/assets/`.
 
 ## Install (unpacked)
 
 1. Open `chrome://extensions` and turn on **Developer mode** (top right).
-2. Click **Load unpacked** and choose the `extension/` folder.
+2. Click **Load unpacked** and choose the `extension/` folder. (The repo root isn't an extension anymore.)
 3. The settings page opens. Tell Hackie your task (e.g. "my CMPT 225 linked list assignment"), add task keywords, and adjust the work/slacking site lists.
 4. Pin the extension and click Hackie for today's report. The popup also has the team's quick controls: test a nudge, whip or lockdown, set "nudge me after N min", and reset Hackie's mood.
 
@@ -291,4 +298,4 @@ AI_PROVIDER=deepseek AI_KEY=sk-... node tests/live-ai.mjs
 
 This optional live check hits a real provider. It lists models, judges a cat video vs. a lecture, checks that sensitive pages are redacted, runs the agent's tool loop on fake data, checks that the enforcer closes slacking tabs after begging, and checks that the arbiter refuses a 4th snooze but allows a real lecture. It also checks replies (an excuse for cat videos stays slacking, a lecture gets reclassified, furious Hackie keeps a snooze refused, a prompt injection fails) and label review (cat page denied, lecture approved). It costs a fraction of a cent. `AI_MODEL` and `AI_BASE_URL` work too (e.g. `AI_PROVIDER=custom AI_BASE_URL=http://localhost:11434/v1 AI_MODEL=llama3.1`).
 
-Debugging: turn on **Debug mode** in settings, or open the service worker console from `chrome://extensions` and run `await taskwhip.refresh()`, `await taskwhip.popupState()` or `await taskwhip.ask('why aren\'t you tracking?')`.
+Debugging: turn on **Debug mode** in settings, or open the service worker console from `chrome://extensions` and run `await taskwhip.refresh()`, `await taskwhip.popupState()` or `await taskwhip.ask('why aren\'t you tracking?')`. The `taskwhip` global, the `taskwhip-hackie` and `taskwhip-console` elements and the `taskwhip-tick` alarm keep their pre-merge names so that open tabs, saved alarms, backups and the tests keep working.

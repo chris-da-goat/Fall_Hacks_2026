@@ -1,42 +1,172 @@
-/* Chrome caps popups at 800x600; this layout is designed to stay under 600px tall.
-   Brand accents use --brand / --brand-ink (text) / --brand-soft from theme.css;
-   --tomato is kept for the "slacking" category and for a furious Hackie refusing your clicks. */
+/* The team's "Hackie" look (Figma "Hackie Browser Extension") on our popup: Hackie on the page
+   background at the top, then one flat teal panel with two rounded "ears" that holds everything
+   in white Inter ExtraBold. No borders or shadows: translucent white for controls and cards,
+   solid white with teal text for primary actions. Chrome caps popups at 800x600; this layout
+   stays under 600px tall (popup.js fitPopup/fitChat cap the tab panel / chat log when needed).
+
+   The teal panel looks the same in light and dark mode, so colors on it are fixed rather than
+   theme tokens; only the strip behind Hackie and the floating cards follow the theme. */
+:root {
+  --hk-size: 75px; /* Hackie's box: the 50x48 sprite crop at 1.5x */
+  --ear-w: 30px;
+  --ear-h: 24px;
+  --on: #ffffff;
+  --on-muted: rgba(255, 255, 255, 0.86);
+  --on-faint: rgba(255, 255, 255, 0.75);
+  --ctl: rgba(255, 255, 255, 0.2); /* buttons, inputs, selected tab */
+  --ctl-hover: rgba(255, 255, 255, 0.35);
+  --card: rgba(255, 255, 255, 0.1); /* cards inside the panel */
+  --ink: #1d6577; /* teal text on white */
+  /* Data colors, lightened to read on teal: green = work, red = slacking. */
+  --work-on: #b4f5cd;
+  --slack-on: #ffd0ca;
+  --work-bar: #7ee2a0;
+  --slack-bar: #ff8f85;
+  --work-pill-bg: #d9f7e5;
+  --work-pill: #146c3a;
+  --slack-pill-bg: #ffe1de;
+  --slack-pill: #b42318;
+  --warn-on: #ffb4ab; /* dashed "Hackie may refuse this" marks */
+}
 html {
   overflow-x: hidden;
+  /* Anything below the content (popup resizes, overscroll) continues the teal panel. */
+  background: var(--panel);
 }
 body {
   width: 372px;
+  background: transparent;
+  font-weight: 800;
 }
 
+/* ---------- Hackie on white ---------- */
+
 .top {
+  position: relative;
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px 8px 14px;
+  justify-content: center;
+  height: calc(var(--hk-size) + 7px); /* a few px of white under his feet, like the team's */
+  padding-top: 2px;
+  background: var(--bg);
 }
-/* Hackie is pixel art: a 48px box shows the 64px GIF's 42x48 robot crop at exactly 1:1. */
 .avatar {
-  width: 48px;
-  height: 48px;
+  width: var(--hk-size);
+  height: var(--hk-size);
   flex: none;
 }
+/* Furious Hackie has his whip out; the lash reaches into the empty strip on his left. Scaled about
+   his hand (15,64 in the whip's 120-unit viewBox). */
+.avatar .hk-whip-svg {
+  transform: scale(0.62);
+  transform-origin: 12.5% 53.3%;
+}
+.avatar .hk-lash {
+  stroke-width: 5;
+}
+.avatar .hk-whip > path:not(.hk-lash) {
+  stroke-width: 3;
+}
+/* "Hackie is angry" / "Hackie is FURIOUS" (anger 2+) sits beside him on the white, reasons below. */
+.anger {
+  position: absolute;
+  top: 6px;
+  right: 12px;
+  width: calc(50% - var(--hk-size) / 2 - 20px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  text-align: right;
+}
+.anger[hidden] {
+  display: none;
+}
+.anger-pill {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 15px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  background: var(--panel);
+  color: var(--on);
+}
+.anger-pill.furious {
+  background: var(--slack-pill-bg);
+  color: var(--slack-pill);
+  animation: anger-pulse 1.4s ease-in-out infinite;
+}
+@keyframes anger-pulse {
+  50% {
+    background: #ffb9b0;
+  }
+}
+.anger-why {
+  max-width: 100%;
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+/* ---------- The teal panel ---------- */
+
+.sheet {
+  position: relative;
+  padding: 2px 10px 10px;
+  background: var(--panel);
+  color: var(--on);
+  scrollbar-color: rgba(255, 255, 255, 0.45) transparent;
+}
+/* The ears: quarter-ellipses rising off the panel's top corners, so the panel reads as a head. */
+.sheet::before,
+.sheet::after {
+  content: '';
+  position: absolute;
+  top: calc(var(--ear-h) * -1);
+  width: var(--ear-w);
+  height: var(--ear-h);
+  background: var(--panel);
+}
+.sheet::before {
+  left: 0;
+  border-top-right-radius: 100% 100%;
+}
+.sheet::after {
+  right: 0;
+  border-top-left-radius: 100% 100%;
+}
+.sheet :focus-visible {
+  outline-color: var(--on);
+}
+
+/* Status and task: centred label/value lines like the team's stats. */
 .who {
-  flex: 1;
+  position: relative;
+  padding: 0 30px;
+  text-align: center;
   min-width: 0;
 }
 .status {
-  font-weight: 700;
-  font-size: 14px;
+  font-size: 14.5px;
+  line-height: 18px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .task-line {
   display: flex;
+  justify-content: center;
   align-items: baseline;
   gap: 4px;
   font-size: 12.5px;
-  color: var(--muted);
+  line-height: 16px;
+  color: var(--on-muted);
   min-width: 0;
 }
 .task-label {
@@ -48,110 +178,128 @@ body {
   background: none;
   padding: 0;
   font-size: 12.5px;
-  color: var(--fg);
-  font-weight: 600;
+  color: var(--on);
   cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  text-align: left;
   min-width: 0;
-}
-.task-title:hover {
-  text-decoration: underline;
+  text-decoration: underline transparent;
   text-underline-offset: 3px;
+  text-decoration-thickness: 1.5px;
 }
+.task-title:hover,
 .task-title.unset {
-  color: var(--brand-ink);
-}
-/* "Hackie is angry" / "Hackie is FURIOUS" (anger 2+): a third header row. The status and task
-   lines tighten so the three rows still fit the 48px avatar and the header doesn't grow. */
-.top.has-anger .status {
-  line-height: 18px;
-}
-.top.has-anger .task-line {
-  line-height: 16px;
-}
-.anger {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  height: 14px;
-  font-size: 11px;
-  line-height: 14px;
-  color: var(--muted);
-}
-.anger[hidden] {
-  display: none;
-}
-.anger-pill {
-  flex: none;
-  padding: 0 6px;
-  border-radius: 999px;
-  font-size: 10.5px;
-  font-weight: 800;
-  line-height: 14px;
-  letter-spacing: 0.02em;
-  background: var(--brand-soft);
-  color: var(--brand-ink);
-}
-.anger-pill.furious {
-  background: var(--tomato-soft);
-  color: var(--tomato-deep);
-  box-shadow: inset 0 0 0 1px var(--tomato);
-  animation: anger-pulse 1.4s ease-in-out infinite;
-}
-@keyframes anger-pulse {
-  50% {
-    box-shadow: inset 0 0 0 1px var(--tomato), 0 0 0 3px var(--tomato-soft);
-  }
-}
-.anger-why {
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-/* Furious Hackie has his whip out. Its lash reaches a whole box to the left, so it's scaled about
-   his hand (15,64 in the whip's 120-unit viewBox) to fit the 14px gutter, with a thicker stroke. */
-.avatar .hk-whip-svg {
-  transform: scale(0.38);
-  transform-origin: 12.5% 53.3%;
-}
-.avatar .hk-lash {
-  stroke-width: 10;
-}
-.avatar .hk-whip > path:not(.hk-lash) {
-  stroke-width: 5;
+  text-decoration-color: currentColor;
 }
 .icon-btn {
+  position: absolute;
+  top: 0;
+  right: -4px;
   appearance: none;
   border: 0;
   background: transparent;
-  color: var(--muted);
-  width: 32px;
-  height: 32px;
+  color: var(--on);
+  width: 30px;
+  height: 30px;
   border-radius: 9px;
   display: grid;
   place-items: center;
   cursor: pointer;
-  flex: none;
 }
 .icon-btn:hover {
-  background: var(--surface-2);
-  color: var(--fg);
+  background: var(--ctl);
 }
 
 main {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 0 12px 10px;
+  gap: 6px;
+  padding: 5px 0 8px;
 }
 
+/* Cards inside the panel: translucent white, no borders. */
+.sheet .card {
+  background: var(--card);
+  border: 0;
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+/* Pills on teal: the category colors on light tints. */
+.sheet .pill.work {
+  background: var(--work-pill-bg);
+  color: var(--work-pill);
+}
+.sheet .pill.slack {
+  background: var(--slack-pill-bg);
+  color: var(--slack-pill);
+}
+.sheet .pill.neutral,
+.sheet .pill.idle {
+  background: var(--ctl);
+  color: var(--on);
+}
+
+/* Links on teal. */
+.linkish {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--on);
+  font-size: 12px;
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 255, 255, 0.55);
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1.5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.linkish:hover {
+  text-decoration-color: var(--on);
+}
+.linkish:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Buttons on teal: translucent white; primary = solid white with teal text; ghost = the team's
+   plain white text that underlines on hover. */
+.sheet .btn {
+  border: 0;
+  border-radius: 10px;
+  padding: 6px 12px;
+  background: var(--ctl);
+  color: var(--on);
+  font-weight: 800;
+}
+.sheet .btn:hover {
+  background: var(--ctl-hover);
+}
+.sheet .btn.primary {
+  background: var(--on);
+  color: var(--ink);
+}
+.sheet .btn.primary:hover {
+  background: #e3f1f4;
+}
+.sheet .btn.ghost {
+  background: transparent;
+  color: var(--on);
+  text-decoration: underline transparent;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1.5px;
+}
+.sheet .btn.ghost:hover {
+  background: transparent;
+  text-decoration-color: var(--on);
+}
+
+/* ---------- Now card ---------- */
+
 .now {
-  padding: 12px 14px;
+  padding: 9px 12px 10px;
 }
 .now-head {
   display: flex;
@@ -163,45 +311,60 @@ main {
   min-width: 0;
 }
 .now-domain {
-  font-weight: 700;
-}
-.now-title {
-  color: var(--muted);
-  font-size: 12.5px;
+  font-size: 14px;
+  line-height: 19px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.now-title {
+  color: var(--on-muted);
+  font-size: 12px;
+  line-height: 17px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.now-title:empty {
+  display: none;
+}
 .streak {
-  margin-top: 6px;
-  font-size: 13px;
-  font-weight: 650;
-  color: var(--tomato-deep);
+  margin-top: 4px;
+  font-size: 12.5px;
+  line-height: 17px;
+  color: var(--slack-on);
   font-variant-numeric: tabular-nums;
+}
+.streak[hidden],
+.snoozes[hidden] {
+  display: none;
 }
 .snoozes {
   margin-top: 2px;
   font-size: 12px;
-  font-weight: 600;
-  color: var(--brand-ink);
+  line-height: 17px;
+  color: var(--on);
 }
 /* Memory: a known slacking habit wraps as one piece if the streak line runs out of room. */
 .habit-note {
   white-space: nowrap;
-  font-weight: 600;
 }
 .reason {
-  margin: 4px 0 0;
-  color: var(--muted);
-  font-size: 12.5px;
+  margin: 3px 0 0;
+  color: var(--on-muted);
+  font-size: 12px;
+  line-height: 17px;
+}
+.reason:empty {
+  display: none;
 }
 
 /* Debug mode: one badge + the plain-English "why", clamped to two lines (full text in the tooltip). */
 .dbg {
-  margin-top: 4px;
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--muted);
+  margin-top: 3px;
+  font-size: 11.5px;
+  line-height: 16px;
+  color: var(--on-muted);
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -228,91 +391,77 @@ main {
   margin-right: 6px;
   padding: 0 6px;
   border-radius: 999px;
-  font-size: 10px;
-  font-weight: 800;
-  line-height: 16px;
+  font-size: 9.5px;
+  line-height: 15px;
   letter-spacing: 0.05em;
   vertical-align: 1px;
-  background: var(--neutral-soft);
-  color: var(--muted);
+  background: var(--ctl);
+  color: var(--on);
 }
 .dbg-badge.on {
-  background: var(--leaf-soft);
-  color: var(--leaf);
+  background: var(--work-pill-bg);
+  color: var(--work-pill);
 }
 .dbg-badge.off {
-  background: var(--brand-soft);
-  color: var(--brand-ink);
+  background: var(--on);
+  color: var(--ink);
 }
 
 .classify {
   position: relative;
-  margin-top: 10px;
+  margin-top: 8px;
 }
 .seg {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  background: var(--surface-2);
+  background: var(--card);
   border-radius: 10px;
-  padding: 3px;
-  gap: 3px;
+  padding: 2px;
+  gap: 2px;
 }
 .seg button {
   appearance: none;
   border: 0;
   background: transparent;
   border-radius: 8px;
-  padding: 5px 4px;
-  font-weight: 600;
+  padding: 4px;
   font-size: 12.5px;
-  color: var(--muted);
+  line-height: 18px;
+  color: var(--on);
   cursor: pointer;
 }
 .seg button:hover {
-  color: var(--fg);
+  background: var(--ctl);
 }
 .seg button.on {
-  background: var(--surface);
-  color: var(--fg);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14);
+  background: var(--on);
+  color: var(--ink);
 }
-.seg button.on[data-cat="work"] {
-  color: var(--leaf);
+.seg button.on[data-cat='work'] {
+  color: var(--work-pill);
 }
-.seg button.on[data-cat="slack"] {
-  color: var(--tomato-deep);
+.seg button.on[data-cat='slack'] {
+  color: var(--slack-pill);
 }
 .scope-row {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
   gap: 8px;
-  margin-top: 6px;
-  font-size: 12px;
-  color: var(--faint);
+  margin-top: 5px;
+  font-size: 11.5px;
+  line-height: 16px;
+  color: var(--on-faint);
+}
+.scope-row .linkish {
+  font-size: 11.5px;
 }
 .scope-text {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.linkish {
-  appearance: none;
-  border: 0;
-  background: none;
-  padding: 0;
-  color: var(--muted);
-  font-size: 12px;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.linkish:hover {
-  color: var(--fg);
-}
-/* "What Hackie read" opens as a small popover over the tabs, so it never adds height
-   (the popup has no room left for it with debug mode, snoozes and the new Today rows). */
+/* "What Hackie read" opens as a small popover over the tabs, so it never adds height. */
 .sees {
   position: absolute;
   z-index: 5;
@@ -321,97 +470,104 @@ main {
   right: -4px;
   margin: 0;
   padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--surface);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
+  color: var(--fg);
   display: grid;
   grid-template-columns: auto 1fr;
   align-content: start;
   gap: 3px 10px;
   font-size: 12px;
-  max-height: 90px;
+  max-height: 96px;
   overflow: auto;
   overscroll-behavior: contain;
+  scrollbar-color: auto;
 }
 .sees[hidden] {
   display: none;
 }
 .sees dt {
-  color: var(--faint);
+  color: var(--muted);
 }
 .sees dd {
   margin: 0;
   overflow-wrap: anywhere;
 }
 
+/* ---------- Tabs ---------- */
+
 .tabs {
   display: flex;
   gap: 2px;
-  padding: 0 2px;
 }
 .tabs button {
   appearance: none;
   border: 0;
   background: none;
-  padding: 6px 10px;
+  padding: 4px 10px;
   border-radius: 8px;
   font-size: 12.5px;
-  font-weight: 650;
-  color: var(--muted);
+  line-height: 18px;
+  color: var(--on-muted);
   cursor: pointer;
   white-space: nowrap;
+  text-decoration: underline transparent;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1.5px;
 }
 .tabs #tab-ask {
   margin-left: auto;
 }
 .tabs button:hover {
-  color: var(--fg);
-  background: var(--surface-2);
+  color: var(--on);
+  text-decoration-color: var(--on);
 }
-.tabs button[aria-selected="true"] {
-  color: var(--fg);
-  background: var(--surface);
-  box-shadow: inset 0 0 0 1px var(--line);
+.tabs button[aria-selected='true'] {
+  color: var(--on);
+  background: var(--ctl);
+  text-decoration-color: transparent;
 }
 
 /* popup.js (fitPopup) caps a panel and lets it scroll if long text would push the popup past 600px. */
 .panel {
-  padding: 10px 14px;
-  min-height: 148px;
+  padding: 9px 12px;
+  min-height: 140px;
+  scrollbar-width: thin;
 }
 .panel[hidden] {
   display: none;
 }
+
+/* Today: centred label/value pairs like the team's "Watched today:" / "0 min". */
 .kpis {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(4, auto);
+  justify-content: space-between;
+  gap: 6px;
+  text-align: center;
 }
 .kpi span {
   display: block;
-  font-size: 11.5px;
-  color: var(--muted);
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--on-muted);
+  white-space: nowrap;
 }
-/* Four KPIs share the row now, so values stay on one line ("1h 12m"). Font: Inter 800 (theme.css). */
 .kpi b {
   display: block;
-  font-size: 18px;
-  line-height: 1.3;
+  font-size: 19px;
+  line-height: 23px;
   letter-spacing: -0.01em;
   white-space: nowrap;
 }
 .kpi.work b {
-  color: var(--leaf);
+  color: var(--work-on);
 }
 .kpi.slack b {
-  color: var(--tomato-deep);
-}
-.kpi.breaks b {
-  color: var(--brand-ink);
+  color: var(--slack-on);
 }
 .budget {
-  margin-top: 10px;
+  margin-top: 8px;
 }
 .budget[hidden] {
   display: none;
@@ -419,62 +575,71 @@ main {
 .budget-row {
   display: flex;
   justify-content: space-between;
-  font-size: 12px;
-  color: var(--muted);
-  margin-bottom: 5px;
+  font-size: 11.5px;
+  line-height: 16px;
+  color: var(--on-muted);
+  margin-bottom: 4px;
 }
 .bar {
-  height: 7px;
+  height: 6px;
   border-radius: 99px;
-  background: var(--surface-2);
+  background: var(--ctl);
   overflow: hidden;
 }
 .bar .fill {
   height: 100%;
   width: 0;
-  background: var(--amber);
+  background: #ffd166;
   border-radius: 99px;
   transition: width 0.4s ease;
 }
 .bar .fill.over {
-  background: var(--tomato);
+  background: var(--slack-bar);
 }
 .events {
-  margin-top: 8px;
-  font-size: 12px;
-  color: var(--muted);
+  margin-top: 7px;
+  font-size: 11.5px;
+  line-height: 16px;
+  color: var(--on-muted);
 }
 .nudge-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 6px;
-  margin-top: 8px;
+  margin-top: 7px;
   font-size: 12px;
-  color: var(--muted);
+  line-height: 16px;
 }
 .nudge-row input {
-  width: 54px;
+  width: 52px;
   padding: 2px 6px;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  background: var(--bg);
+  border: 0;
+  border-radius: 6px;
+  background: var(--ctl);
+  color: var(--on);
   font-size: 12.5px;
-  font-weight: 650;
-  text-align: right;
+  line-height: 18px;
+  text-align: center;
   font-variant-numeric: tabular-nums;
+}
+.nudge-row input:hover {
+  background: var(--ctl-hover);
 }
 .nudge-row input:focus-visible {
   outline-offset: 0;
+}
+.nudge-msg {
+  color: var(--on-muted);
 }
 .nudge-msg:empty {
   display: none;
 }
 .nudge-msg.err {
-  color: var(--brand-ink);
-  font-weight: 600;
+  color: var(--slack-on);
 }
 
+/* Top sites */
 .sites {
   list-style: none;
   margin: 0;
@@ -490,15 +655,15 @@ main {
   gap: 3px 8px;
 }
 .site .name {
-  font-weight: 600;
-  font-size: 13px;
+  font-size: 12.5px;
+  line-height: 17px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .site .time {
-  font-size: 12.5px;
-  color: var(--muted);
+  font-size: 12px;
+  color: var(--on-muted);
   min-width: 34px;
   text-align: right;
 }
@@ -508,7 +673,7 @@ main {
   height: 5px;
   border-radius: 99px;
   overflow: hidden;
-  background: var(--surface-2);
+  background: var(--card);
 }
 .stack i {
   display: block;
@@ -516,14 +681,19 @@ main {
 }
 .stack .w,
 .sw.work {
-  background: var(--leaf);
+  background: var(--work-bar);
 }
 .stack .s,
 .sw.slack {
-  background: var(--tomato);
+  background: var(--slack-bar);
 }
 .stack .n {
-  background: var(--neutral);
+  background: rgba(255, 255, 255, 0.55);
+}
+.site .pill {
+  padding: 1px 8px;
+  font-size: 11px;
+  line-height: 15px;
 }
 .cat-btn {
   appearance: none;
@@ -531,11 +701,15 @@ main {
   cursor: pointer;
   font-family: inherit;
 }
+button.cat-btn:hover {
+  filter: brightness(0.94);
+}
 .empty {
-  color: var(--muted);
+  color: var(--on-muted);
   font-size: 12.5px;
 }
 
+/* 7 days */
 .week {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -558,7 +732,7 @@ main {
   flex-direction: column-reverse;
   border-radius: 6px;
   overflow: hidden;
-  background: var(--surface-2);
+  background: var(--card);
   min-height: 3px;
 }
 .col i {
@@ -566,18 +740,21 @@ main {
   width: 100%;
 }
 .col .w {
-  background: var(--leaf);
+  background: var(--work-bar);
 }
 .col .s {
-  background: var(--tomato);
+  background: var(--slack-bar);
 }
 .day .d {
   font-size: 11px;
-  color: var(--faint);
+  line-height: 14px;
+  color: var(--on-faint);
 }
 .day.today .d {
-  color: var(--fg);
-  font-weight: 700;
+  color: var(--on);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1.5px;
 }
 .legend {
   display: flex;
@@ -585,7 +762,7 @@ main {
   gap: 6px;
   margin-top: 10px;
   font-size: 11.5px;
-  color: var(--muted);
+  color: var(--on-muted);
 }
 .legend .sw {
   width: 9px;
@@ -597,20 +774,22 @@ main {
   margin-left: 8px;
 }
 
-/* Ask Hackie. popup.js (fitChat) also caps the log so the whole popup stays within 600px;
+/* ---------- Ask Hackie ----------
+   popup.js (fitChat) also caps the log so the whole popup stays within 600px;
    the max-height here is the fallback before that runs. */
 .ask-panel:not([hidden]) {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 .ask-head {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
   gap: 8px;
-  font-size: 12px;
-  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 15px;
+  color: var(--on-muted);
 }
 .ask-head[hidden] {
   display: none;
@@ -621,19 +800,15 @@ main {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.linkish:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
 .ask-setup {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
   border-radius: 10px;
-  background: var(--surface-2);
+  background: var(--card);
   font-size: 12.5px;
-  color: var(--muted);
+  color: var(--on);
 }
 .ask-setup[hidden] {
   display: none;
@@ -675,28 +850,29 @@ main {
   position: relative;
   padding: 6px 10px;
   border-radius: 12px;
-  font-size: 13px;
+  font-size: 12.5px;
   line-height: 1.4;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 .msg.bot .bubble {
-  background: var(--surface-2);
+  background: var(--ctl);
+  color: var(--on);
   border-bottom-left-radius: 4px;
 }
 .msg.me .bubble {
-  background: var(--fg);
-  color: var(--surface);
+  background: var(--on);
+  color: var(--ink);
   border-bottom-right-radius: 4px;
 }
 .msg.err .bubble {
-  background: var(--brand-soft);
-  color: var(--brand-ink);
+  background: var(--slack-pill-bg);
+  color: var(--slack-pill);
   font-size: 12px;
   border-bottom-left-radius: 4px;
 }
 .msg.pending .bubble {
-  color: var(--muted);
+  color: var(--on-muted);
   font-style: italic;
   animation: hackie-thinking 1.2s ease-in-out infinite;
 }
@@ -713,7 +889,7 @@ main {
 .msg .tools {
   margin: 2px 4px 0;
   font-size: 11px;
-  color: var(--muted);
+  color: var(--on-faint);
 }
 .starters {
   flex: none;
@@ -723,18 +899,16 @@ main {
 }
 .starter {
   appearance: none;
-  border: 1px solid var(--line);
-  background: var(--surface);
+  border: 0;
+  background: var(--ctl);
   border-radius: 999px;
   padding: 3px 10px;
   font-size: 12px;
-  font-weight: 600;
-  color: var(--fg);
+  color: var(--on);
   cursor: pointer;
 }
 .starter:hover {
-  background: var(--surface-2);
-  border-color: var(--brand);
+  background: var(--ctl-hover);
 }
 .ask-form {
   display: flex;
@@ -743,14 +917,18 @@ main {
 .ask-form input {
   flex: 1;
   min-width: 0;
-  padding: 7px 10px;
-  border: 1px solid var(--line);
+  padding: 6px 10px;
+  border: 0;
   border-radius: 10px;
-  background: var(--bg);
-  font-size: 13px;
+  background: var(--ctl);
+  color: var(--on);
+  font-size: 12.5px;
+}
+.ask-form input:hover {
+  background: var(--ctl-hover);
 }
 .ask-form input::placeholder {
-  color: var(--faint);
+  color: var(--on-faint);
 }
 .ask-form input:focus-visible {
   outline-offset: 0;
@@ -761,24 +939,62 @@ main {
 }
 .ask-form .btn {
   flex: none;
-  padding: 7px 14px;
+  padding: 6px 14px;
 }
+
+/* ---------- Footer ---------- */
 
 .foot {
   position: relative;
-  padding: 0 12px 12px;
 }
 .foot-row {
   display: flex;
-  gap: 6px;
+  align-items: center;
+  gap: 3px;
 }
-/* "Hackie closed 3 tabs · Restore": one short line that tucks into main's bottom padding. */
+.foot-row .btn {
+  font-size: 12.5px;
+}
+.foot-row[hidden] {
+  display: none;
+}
+/* The break button takes what's left of the row ("End break (14:59 left)" is its longest label)
+   and trims with an ellipsis rather than pushing Run Hackie off the edge. */
+#breakBtn {
+  flex: 1;
+  display: block;
+  min-width: 0;
+  padding-left: 10px;
+  padding-right: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+}
+.foot-row .btn.ghost {
+  flex: none;
+  padding-left: 5px;
+  padding-right: 5px;
+  white-space: nowrap;
+}
+.foot .btn.active,
+.foot .btn.active:hover {
+  background: var(--work-pill-bg);
+  color: var(--work-pill);
+}
+/* Test mode swaps the footer row for Nudge / Whip / Lockdown, so it adds no height. */
+.test-row .btn:not(.ghost) {
+  flex: 1;
+}
+/* "Hackie closed 3 tabs · Restore": one short line above the buttons. */
 .restore {
-  margin: -4px 2px 6px;
+  margin: -2px 2px 6px;
   font-size: 12px;
   line-height: 16px;
-  font-weight: 600;
-  color: var(--brand-ink);
+  color: var(--on);
+}
+.restore.err {
+  color: var(--slack-on);
 }
 .restore[hidden] {
   display: none;
@@ -787,52 +1003,68 @@ main {
 .linkish.locked:disabled {
   opacity: 1;
   text-decoration: none;
-  color: var(--muted);
+  color: var(--on-muted);
   font-variant-numeric: tabular-nums;
 }
-/* Clicks an angry Hackie may refuse (the title says so): a dashed tomato edge. */
-.btn.may-refuse:not(:disabled) {
-  border-style: dashed;
-  border-color: var(--tomato);
+/* Clicks an angry Hackie may refuse (the title says so): a dashed light-red edge or underline. */
+.sheet .btn.may-refuse:not(:disabled) {
+  outline: 1.5px dashed var(--warn-on);
+  outline-offset: 1px;
+}
+.sheet .btn.ghost.may-refuse:not(:disabled) {
+  outline: 0;
+  text-decoration: underline dashed var(--warn-on);
+  text-decoration-thickness: 1.5px;
 }
 .linkish.may-refuse:not(:disabled) {
   text-decoration-style: dashed;
-  text-decoration-color: var(--tomato);
+  text-decoration-color: var(--warn-on);
 }
 /* The click waiting for Hackie's verdict pulses instead of looking dead (the others just disable). */
-.btn[aria-busy="true"]:disabled,
-.linkish[aria-busy="true"]:disabled {
+.btn[aria-busy='true']:disabled,
+.linkish[aria-busy='true']:disabled {
   opacity: 1;
   cursor: progress;
   animation: hackie-thinking 1.2s ease-in-out infinite;
 }
 
-/* "Hackie is deciding…" and the refusal card float above the footer like the toast, so neither
-   adds height (the popup stays within 600px on every tab). */
+/* Test results, "Hackie is deciding…" and the refusal card float above the footer as solid
+   cards (no layout shift, so the popup stays within 600px on every tab). */
+.toast,
 .deciding,
 .verdict {
   position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: calc(100% + 6px);
+  left: 0;
+  right: 0;
   margin: 0;
-  border-radius: 12px;
+  background: var(--surface);
+  color: var(--fg);
+}
+.toast {
+  bottom: calc(100% + 4px);
+  z-index: 5;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 12.5px;
+}
+.toast.err {
+  color: var(--tomato-deep);
+}
+.toast[hidden],
+.deciding[hidden],
+.verdict[hidden] {
+  display: none;
 }
 .deciding {
+  bottom: calc(100% + 6px);
   z-index: 6;
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  border: 1px solid var(--line);
-  background: var(--surface);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  border-radius: 12px;
   font-size: 12.5px;
   line-height: 16px;
-}
-.deciding[hidden],
-.verdict[hidden] {
-  display: none;
 }
 .deciding-hackie {
   flex: none;
@@ -847,6 +1079,7 @@ main {
   min-width: 0;
 }
 .deciding-text b {
+  color: var(--brand-ink);
   animation: hackie-thinking 1.2s ease-in-out infinite;
 }
 .deciding-what {
@@ -854,16 +1087,16 @@ main {
   font-size: 12px;
 }
 .verdict {
+  bottom: calc(100% + 6px);
   z-index: 7;
   display: grid;
   grid-template-columns: 52px 1fr auto;
   align-items: center;
   gap: 12px;
   padding: 12px 10px 16px 14px;
-  border: 1.5px solid var(--tomato);
+  border-radius: 12px;
   /* An opaque tint (the dark theme's --tomato-soft is translucent). */
   background: linear-gradient(var(--tomato-soft), var(--tomato-soft)), var(--surface);
-  box-shadow: 0 12px 32px rgba(196, 39, 30, 0.3);
 }
 .verdict.show {
   animation: verdict-in 0.45s ease-out;
@@ -906,7 +1139,6 @@ main {
 }
 .verdict-title {
   display: block;
-  font-family: var(--font-display);
   font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -915,7 +1147,6 @@ main {
 .verdict-msg {
   margin: 2px 0 0;
   font-size: 14px;
-  font-weight: 700;
   line-height: 1.35;
   color: var(--fg);
   overflow-wrap: anywhere;
@@ -925,10 +1156,10 @@ main {
   overflow: hidden;
 }
 .verdict-msg::before {
-  content: "\201C";
+  content: '\201C';
 }
 .verdict-msg::after {
-  content: "\201D";
+  content: '\201D';
 }
 .verdict-x {
   align-self: start;
@@ -947,6 +1178,9 @@ main {
 .verdict-x:hover {
   background: var(--tomato-soft);
 }
+.verdict-x:focus-visible {
+  outline-color: var(--tomato-deep);
+}
 /* Shrinks over the 7 seconds the card stays up; holds while hovered (popup.js pauses the timer too). */
 .verdict-timer {
   position: absolute;
@@ -955,7 +1189,7 @@ main {
   bottom: 6px;
   height: 3px;
   border-radius: 99px;
-  background: linear-gradient(90deg, var(--brand), var(--tomato));
+  background: linear-gradient(90deg, var(--panel), var(--tomato));
   transform-origin: left center;
 }
 .verdict.show .verdict-timer {
@@ -973,54 +1207,8 @@ main {
   .verdict.show,
   .anger-pill.furious,
   .deciding-text b,
-  .btn[aria-busy="true"],
-  .linkish[aria-busy="true"] {
+  .btn[aria-busy='true'],
+  .linkish[aria-busy='true'] {
     animation: none;
   }
-}
-.foot-row[hidden] {
-  display: none;
-}
-#breakBtn {
-  flex: 1;
-  white-space: nowrap;
-}
-.foot-row .btn.ghost {
-  padding-left: 10px;
-  padding-right: 10px;
-}
-/* Test mode swaps the footer row for Nudge / Whip / Lockdown, so it adds no height. */
-.test-row .btn:not(.ghost) {
-  flex: 1;
-}
-.test-row .btn:not(.ghost):hover {
-  border-color: var(--brand);
-}
-/* Test results float above the footer (no layout shift, no alert()). */
-.toast {
-  position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: calc(100% + 4px);
-  z-index: 5;
-  margin: 0;
-  padding: 6px 10px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--surface);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
-  font-size: 12.5px;
-  color: var(--fg);
-}
-.toast.err {
-  color: var(--brand-ink);
-  font-weight: 600;
-}
-.toast[hidden] {
-  display: none;
-}
-.foot .btn.active {
-  background: var(--leaf-soft);
-  border-color: transparent;
-  color: var(--leaf);
 }

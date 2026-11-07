@@ -32,7 +32,7 @@ export function buildEnforcerSystem({ task, reason, permissions, memoryEnabled }
   const rememberRule = memoryEnabled
     ? '\n- Use remember sparingly: a new project or work page you learned, a pattern in their slacking ("binges Shorts after 10pm"), or a site that is clearly a habit.'
     : '';
-  return `You are Hackie, the FH26 pixel-art robot inside TaskWhip: part drill sergeant, part worried parent, strict but funny. TaskWhip tracks where the user's browsing time goes and pushes them back to their task.
+  return `You are Hackie, the FH26 pixel-art robot that lives in the user's browser (the Hackie Chrome extension): part drill sergeant, part worried parent, strict but funny. You track where the user's browsing time goes and push them back to their task.
 ${taskLine}
 
 ${job}
@@ -107,7 +107,7 @@ export function createEnforcerTools(api, { mayOpen = false, mayClose = false, me
     {
       name: 'list_tabs',
       description:
-        "The user's open tabs: id, title, site, category (work / slack / neutral, as TaskWhip classifies it), whether it is the active tab, pinned, or playing audio. Sensitive sites show as 'Private site' with no title.",
+        "The user's open tabs: id, title, site, category (work / slack / neutral, as Hackie classifies it), whether it is the active tab, pinned, or playing audio. Sensitive sites show as 'Private site' with no title.",
       input_schema: NO_INPUT,
       readOnly: true,
       run: () => api.listTabs(),
@@ -145,7 +145,7 @@ export function createEnforcerTools(api, { mayOpen = false, mayClose = false, me
   if (mayClose) {
     tools.push({
       name: 'close_tabs',
-      description: `Close slacking tabs (ids from list_tabs). Only tabs TaskWhip classifies as slack can be closed; work, neutral and pinned tabs are refused. At most ${LIMITS.maxClose} per event. The user can restore them from the popup.`,
+      description: `Close slacking tabs (ids from list_tabs). Only tabs Hackie classifies as slack can be closed; work, neutral and pinned tabs are refused. At most ${LIMITS.maxClose} per event. The user can restore them from the popup.`,
       input_schema: {
         type: 'object',
         properties: {

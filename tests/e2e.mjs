@@ -352,6 +352,31 @@ async function main() {
     await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 640, y: 400 }, pg);
     await sleep(300);
 
+    // The team's drag-to-move: pick Hackie up, carry him, and he glides back to the screen edge.
+    const walkerAt = () =>
+      inPage(`(() => { const m = document.querySelector('taskwhip-hackie').shadowRoot.querySelector('.walker').style.transform.match(/translate\\(([-\\d.]+)px, ([-\\d.]+)px\\)/); return m ? [Number(m[1]), Number(m[2])] : null; })()`);
+    const start = await walkerAt();
+    const grab = { x: start[0] + 50, y: start[1] + 50 };
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: grab.x, y: grab.y }, pg);
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: grab.x, y: grab.y, button: 'left', buttons: 1, clickCount: 1 }, pg);
+    for (let i = 1; i <= 8; i++) {
+      await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: grab.x + ((640 - grab.x) * i) / 8, y: grab.y + ((330 - grab.y) * i) / 8, button: 'left', buttons: 1 }, pg);
+      await sleep(30);
+    }
+    await sleep(150);
+    const carried = await walkerAt();
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: 640, y: 330, button: 'left', buttons: 0, clickCount: 1 }, pg);
+    await sleep(900);
+    const dropped = await walkerAt();
+    const view = await inPage('({ w: document.documentElement.clientWidth, h: Math.min(innerHeight, document.documentElement.clientHeight) })');
+    const edgeGap = Math.min(dropped[0], dropped[1], view.w - 100 - dropped[0], view.h - 100 - dropped[1]);
+    const panelAfterDrag = await ui('.panel');
+    check('drag: Hackie follows the pointer while carried', Math.hypot(carried[0] + 50 - 640, carried[1] + 50 - 330) < 30, JSON.stringify({ start, carried }));
+    check('drag: on release he glides back to the screen edge', edgeGap < 20, JSON.stringify({ dropped, edgeGap: Math.round(edgeGap) }));
+    check("drag: dropping him doesn't open Hackie's report", !panelAfterDrag || panelAfterDrag.hidden || !/Hackie's report/.test(panelAfterDrag.text), panelAfterDrag?.text?.slice(0, 40));
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 640, y: 400 }, pg);
+    await sleep(300);
+
     const waitFor = async (sel, pred, timeoutMs) => {
       const until = Date.now() + timeoutMs;
       while (Date.now() < until) {
