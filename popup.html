@@ -1,24 +1,36 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
-  <style>
-    body { width: 240px; font-family: sans-serif; padding: 12px; }
-    h3 { margin: 0 0 10px; }
-    .stat { font-size: 22px; font-weight: bold; }
-    .label { color: #666; font-size: 12px; margin-bottom: 10px; }
-    input { width: 50px; }
-    button { margin-top: 8px; cursor: pointer; }
-  </style>
+  <title>Get Up Clippy</title>
+  <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <h3>📎 Get Up Clippy</h3>
-  <div class="stat" id="today">0 min</div>
-  <div class="label">watched today</div>
-  <div class="stat" id="ex">0</div>
-  <div class="label">exercise breaks taken</div>
-  <label>Nag me every <input type="number" id="limit" min="1" value="20"> min</label><br>
-  <button id="test">Test Clippy</button> <button id="reset">Reset mood</button>
+  <main class="popup">
+    <img class="mascot" src="clippy.jpg" alt="Clippy the paperclip">
+
+    <section class="panel">
+      <div class="stat">
+        <span class="stat-label">Watched today:</span>
+        <span class="stat-value" id="today">0 min</span>
+      </div>
+
+      <div class="stat">
+        <span class="stat-label">Breaks Taken:</span>
+        <span class="stat-value" id="ex">0</span>
+      </div>
+
+      <button class="action" id="test" type="button">Run Clippy</button>
+      <button class="action" id="reset" type="button">Reset Mood</button>
+
+      <label class="limit" for="limit">
+        Nag me every
+        <input type="number" id="limit" min="1" value="20">
+        min
+      </label>
+    </section>
+  </main>
+
   <script src="popup.js"></script>
 </body>
 </html>

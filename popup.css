@@ -1,0 +1,173 @@
+/* Get Up Clippy – popup styles
+   Source: Figma "Clippy Browser Extension".
+   The design frame is ~790px wide; this popup is a 480px-wide
+   version of it (about 0.6x), so type and spacing are scaled to match. */
+
+@font-face {
+  font-family: "Inter";
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+  src: url("fonts/inter-latin-800-normal.woff2") format("woff2");
+}
+
+:root {
+  --orange: #ff5309;       /* panel fill (sampled from the Figma export) */
+  --white: #ffffff;
+  --ear-w: 50px;           /* the two rounded "ears" on top of the panel */
+  --ear-h: 40px;
+  --font: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--white);
+}
+
+body {
+  width: 480px;
+  font-family: var(--font);
+  font-weight: 800;
+  color: var(--white);
+}
+
+.popup {
+  padding: 20px 0 32px;
+}
+
+/* ---------- Clippy ---------- */
+
+.mascot {
+  display: block;
+  width: 224px;
+  height: 224px;
+  margin: 0 auto;
+  /* the JPG has a white background; this makes it vanish on white */
+  mix-blend-mode: multiply;
+}
+
+/* ---------- Orange panel ---------- */
+
+.panel {
+  position: relative;
+  margin: 24px 40px 0;
+  padding: 32px 24px 28px;
+  background: var(--orange);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px 16px;
+  justify-items: center;
+  text-align: center;
+}
+
+/* Rounded ears: quarter-ellipses sitting on the top-left / top-right corners */
+.panel::before,
+.panel::after {
+  content: "";
+  position: absolute;
+  top: calc(var(--ear-h) * -1);
+  width: var(--ear-w);
+  height: var(--ear-h);
+  background: var(--orange);
+}
+
+.panel::before {
+  left: 0;
+  border-top-right-radius: 100% 100%;
+}
+
+.panel::after {
+  right: 0;
+  border-top-left-radius: 100% 100%;
+}
+
+/* ---------- Stats ---------- */
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.stat-label {
+  font-size: 15px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.stat-value {
+  font-size: 28px;
+  line-height: 1.1;
+}
+
+/* ---------- Buttons (plain white text in the design) ---------- */
+
+.action {
+  appearance: none;
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font: inherit;
+  font-size: 15px;
+  color: var(--white);
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: underline transparent;
+  text-underline-offset: 4px;
+  text-decoration-thickness: 2px;
+  transition: text-decoration-color 0.15s ease;
+}
+
+.action:hover {
+  text-decoration-color: var(--white);
+}
+
+.action:active {
+  opacity: 0.8;
+}
+
+.action:focus-visible,
+.limit input:focus-visible {
+  outline: 2px solid var(--white);
+  outline-offset: 2px;
+}
+
+/* ---------- Nag interval (not in the Figma file; styled to fit) ---------- */
+
+.limit {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  padding-top: 4px;
+}
+
+.limit input {
+  width: 56px;
+  padding: 4px 6px;
+  font: inherit;
+  font-size: 13px;
+  text-align: center;
+  color: var(--white);
+  background: rgba(255, 255, 255, 0.18);
+  border: 0;
+  border-radius: 6px;
+}
+
+.limit input::-webkit-inner-spin-button {
+  opacity: 0.7;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .action {
+    transition: none;
+  }
+}
