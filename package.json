@@ -1,11 +1,11 @@
 {
-  "name": "taskwhip",
-  "version": "0.1.0",
+  "name": "hackie",
+  "version": "0.2.0",
   "private": true,
   "description": "Chrome extension: Hackie, the FH26 robot drill sergeant, tracks your browsing and whips you back to work.",
   "type": "module",
   "scripts": {
-    "test": "node --test tests/classify.test.mjs tests/stats.test.mjs tests/lines.test.mjs tests/ai.test.mjs tests/sensitive.test.mjs tests/agent.test.mjs tests/agent-tools.test.mjs tests/debug.test.mjs tests/memory.test.mjs tests/enforcer.test.mjs tests/anger.test.mjs tests/arbiter.test.mjs tests/ask-hackie.test.mjs",
+    "test": "node --test tests/classify.test.mjs tests/stats.test.mjs tests/lines.test.mjs tests/ai.test.mjs tests/sensitive.test.mjs tests/agent.test.mjs tests/agent-tools.test.mjs tests/debug.test.mjs tests/memory.test.mjs tests/enforcer.test.mjs tests/anger.test.mjs tests/arbiter.test.mjs tests/ask-hackie.test.mjs tests/appeal.test.mjs tests/review.test.mjs tests/search.test.mjs",
     "e2e": "node tests/e2e.mjs",
     "icons": "node tools/make-icons.mjs"
   }

@@ -1,4 +1,4 @@
-// "Ask Hackie": a small tool-using agent harness over TaskWhip's tracking data.
+// "Ask Hackie": a small tool-using agent harness over Hackie's tracking data.
 //
 // runAgent() drives the request -> tool calls -> tool results -> answer loop for both wire
 // formats the extension supports:
@@ -29,7 +29,7 @@ export const MOOD_VOICE = {
  * @param {object} [o.mood]    { mood: calm|annoyed|angry|furious, why: [...], ...situation }
  */
 export function buildAgentSystem({ task, now = new Date(), memory = null, mood = null } = {}) {
-  const taskLine = task?.title ? `The user's chosen task: "${task.title}"${task.keywords?.length ? ` (keywords: ${task.keywords.join(', ')})` : ''}.` : "The user hasn't set a task yet; suggest doing that in TaskWhip's settings.";
+  const taskLine = task?.title ? `The user's chosen task: "${task.title}"${task.keywords?.length ? ` (keywords: ${task.keywords.join(', ')})` : ''}.` : "The user hasn't set a task yet; suggest doing that in Hackie's settings.";
   const moodName = MOOD_VOICE[mood?.mood] ? mood.mood : 'calm';
   const memoryBlock = memory
     ? `What you remember about the user (all of Hackie's memory, kept only in this browser):
@@ -38,7 +38,7 @@ ${JSON.stringify(memory)}
 </memory>
 Use it: call out their habit sites by name, point them to their projects and the work pages they actually use, remember the facts they told you, and bring up past incidents when they fit. Don't ask for things you already know. If "omitted" is present, older or rarely used entries were left out; get_memory has the rest of the details.`
     : "Hackie's memory is turned off in settings, so you don't remember anything from past days. Don't pretend to.";
-  return `You are Hackie, the FH26 pixel-art robot inside TaskWhip, a Chrome extension that tracks where the user's browsing time goes and pushes them back to the task they chose. You're a strict drill sergeant meets a worried parent: tough on slacking, but you care. You also encourage short exercise breaks (a few squats, push-ups or a quick walk around the room) to get the user off the couch.
+  return `You are Hackie, the FH26 pixel-art robot that lives in the user's browser (the Hackie Chrome extension): you track where the user's browsing time goes and push them back to the task they chose. You're a strict drill sergeant meets a worried parent: tough on slacking, but you care. You also encourage short exercise breaks (a few squats, push-ups or a quick walk around the room) to get the user off the couch.
 ${taskLine}
 Local time: ${now.toLocaleString()}.
 
@@ -143,7 +143,7 @@ async function runChatCompletions({ config, system, history, question, tools, to
   const messages = [{ role: 'system', content: system }, ...history.map((m) => ({ role: m.role, content: m.text })), { role: 'user', content: question }];
   const headers = { 'content-type': 'application/json' };
   if (config.apiKey) headers.authorization = `Bearer ${config.apiKey}`;
-  if (config.provider === 'openrouter') headers['X-Title'] = 'TaskWhip';
+  if (config.provider === 'openrouter') headers['X-Title'] = 'Hackie';
   const url = `${config.baseUrl}/chat/completions`;
   let model = config.model;
 

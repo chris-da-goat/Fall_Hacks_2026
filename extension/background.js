@@ -1,4 +1,4 @@
-// TaskWhip service worker.
+// Hackie service worker.
 //
 // Every time something changes (tab switch, navigation, focus, idle, 30s alarm) we:
 //   1. bank the seconds spent on the previous page into today's stats,
@@ -14,7 +14,7 @@ import { mergeSettings, aiConfig, aiReady, aiConfigured } from './lib/defaults.j
 import { classifyPage, pageKey, parseRule, PRIVATE_KEY } from './lib/classify.js';
 import { findSensitive, PRIVATE_DOMAIN } from './lib/sensitive.js';
 import { dayKey, lastNDayKeys, normalizeDay, addTime, topDomains, focusScore } from './lib/stats.js';
-import { pickLine, LEVEL_NAME, pickExercise, snoozeMinutes, snoozeRemark, moodForSnoozes } from './lib/lines.js';
+import { pickLine, LEVEL_NAME, pickExercise, snoozeMinutes, snoozeRemark, moodForSnoozes, lockdownStaysLine, fakeComebackLine, zeroSlackLine } from './lib/lines.js';
 import { judgePage, listModels } from './lib/ai.js';
 import { runAgent, buildAgentSystem } from './lib/agent.js';
 import { createAgentTools } from './lib/agent-tools.js';
@@ -35,6 +35,8 @@ import {
 import { buildEnforcerSystem, buildEnforcerMessage, createEnforcerTools, cleanBubble, LIMITS as ENFORCER_LIMITS } from './lib/enforcer.js';
 import { angerLevel, policyVerdict, denialLine, OVERRIDABLE } from './lib/anger.js';
 import { arbitrate } from './lib/arbiter.js';
+import { appeal, MAX_APPEALS, APPEAL_WINDOW_MS } from './lib/appeal.js';
+import { reviewLabel, loosens } from './lib/review.js';
 
 const TICK_ALARM = 'taskwhip-tick';
 const IDLE_SECONDS = 60;
@@ -81,7 +83,7 @@ async function loadSettings() {
 
 async function loadOverrides() {
   const { overrides } = await chrome.storage.local.get('overrides');
-  return { pages: {}, ...(overrides || {}) };
+  return { pages: {}, sites: {}, ...(overrides || {}) };
 }
 
 function freshState() {
@@ -99,6 +101,10 @@ function freshState() {
     lastEnforcedAt: 0, // when Hackie last closed tabs (keeps him angry for a while)
     level: 0, // the current warning level, for anger
     overBudget: false,
+    lockdown: null, // {at}: a lockdown stays on every slacking page until real work (or exercise) ends it
+    comeback: null, // {at, left, level}: "Back to work" was clicked; Hackie waits for real work
+    fakeComebacks: 0, // "Back to work" clicks followed straight by more slacking
+    zeroOpened: {}, // zero-slack mode: pages we already opened the task page for {pageKey: at}
   };
 }
 
@@ -193,19 +199,26 @@ function sanitizeCtx(ctx) {
   };
 }
 
+// Hackie calms down completely: after real work (see applyStreak), an exercise break, or a reset.
 function resetStreak(state) {
   state.streak = { slack: 0, calm: 0 };
   state.lastFire = { level: 0, at: 0 };
   state.snoozeCount = 0;
   state.lockdownBegs = 0;
+  state.lockdown = null;
+  state.comeback = null;
+  state.fakeComebacks = 0;
 }
+
+// While a lockdown or a "Back to work" promise is open, only work time calms Hackie down.
+const strictCalm = (state) => Boolean(state.lockdown || state.comeback || state.fakeComebacks > 0);
 
 function applyStreak(state, category, seconds, settings) {
   if (category === 'slack') {
     state.streak.slack += seconds;
     state.streak.calm = 0;
   } else {
-    state.streak.calm += seconds;
+    if (category === 'work' || !strictCalm(state)) state.streak.calm += seconds;
     if (state.streak.calm >= settings.thresholds.streakResetMin * 60) resetStreak(state);
   }
 }
@@ -247,7 +260,7 @@ async function getActive(settings) {
   if (!win) return null;
   let focused = Boolean(win.focused);
   let popupOpen = false;
-  // Opening TaskWhip's toolbar popup takes focus away from the browser window, but the
+  // Opening Hackie's toolbar popup takes focus away from the browser window, but the
   // user is obviously still here.
   if (!focused && chrome.runtime.getContexts) {
     try {
@@ -328,6 +341,10 @@ function buildStatus(state, settings, decision, now, day) {
     task: taskLabel(settings),
     snoozeCount: state.snoozeCount || 0,
     anger: computeAnger(state, settings, now),
+    calmAfterMin: settings.thresholds.streakResetMin,
+    canReply: aiConfigured(settings) && !cur.sensitive,
+    lockdownActive: Boolean(state.lockdown),
+    comebackPending: Boolean(state.comeback),
     nextSnoozeMin: snoozeMinutes(state.snoozeCount || 0, settings.thresholds.snoozeMin),
     mood: moodForSnoozes(state.snoozeCount || 0),
     marks: thresholdsInSeconds(settings, cur.habit?.factor ?? 1),
@@ -339,7 +356,7 @@ function buildStatus(state, settings, decision, now, day) {
 function buildFire(state, settings, decision, day) {
   const cur = state.current;
   const vars = {
-    site: cur.sensitive ? 'this private site' : siteName(cur.domain),
+    site: cur.sensitive ? 'this private site' : cur.search ? `"${cur.search.query}" on ${cur.search.engine}` : siteName(cur.domain),
     minutes: humanMinutes(state.streak.slack),
     task: taskLabel(settings),
   };
@@ -376,6 +393,8 @@ function buildFire(state, settings, decision, day) {
     begDelaySec: BEG_DELAY_SEC,
     overBudget: decision.overBudget,
     sensitive: Boolean(cur.sensitive),
+    canReply: aiConfigured(settings) && !cur.sensitive,
+    zeroSlack: Boolean(settings.zeroSlack) && decision.level >= 3,
     today: { work: day.totals.work, slack: day.totals.slack },
   };
 }
@@ -420,16 +439,16 @@ async function updateBadge(state, decision) {
   const cur = state.current;
   let text = '';
   let color = '#8b8d98';
-  let title = 'TaskWhip: not tracking right now';
+  let title = 'Hackie: not tracking right now';
   if (cur?.category === 'slack') {
     const mins = Math.floor(state.streak.slack / 60);
     text = decision.snoozed ? 'zz' : `${mins}m`;
     color = decision.snoozed ? '#8b8d98' : decision.level >= 2 ? '#c4271e' : '#e5484d';
-    title = `TaskWhip: slacking on ${siteName(cur.domain)} for ${mins} min`;
+    title = `Hackie: slacking on ${siteName(cur.domain)} for ${mins} min`;
   } else if (cur?.category === 'work') {
-    title = `TaskWhip: working on ${siteName(cur.domain)}`;
+    title = `Hackie: working on ${siteName(cur.domain)}`;
   } else if (cur) {
-    title = `TaskWhip: ${siteName(cur.domain)} (neutral)`;
+    title = `Hackie: ${siteName(cur.domain)} (neutral)`;
   }
   await chrome.action.setBadgeText({ text });
   await chrome.action.setBadgeBackgroundColor({ color });
@@ -497,7 +516,9 @@ async function refresh(trigger = 'tick') {
 
   // 3) Being away for a while resets the slack streak.
   if (!current) {
-    if (!state.pausedAt) state.pausedAt = now;
+    // During a lockdown, a new-tab or settings page in a focused Chrome isn't "away".
+    const parkedInChrome = strictCalm(state) && active?.focused && active?.idle === 'active';
+    if (!state.pausedAt && !parkedInChrome) state.pausedAt = now;
   } else {
     if (state.pausedAt && now - state.pausedAt >= settings.thresholds.streakResetMin * 60e3) resetStreak(state);
     state.pausedAt = null;
@@ -514,8 +535,39 @@ async function refresh(trigger = 'tick') {
   }
   state.current = current;
 
+  // A "Back to work" click is a promise. Coming back to slacking before real work is a fake comeback:
+  // Hackie gets angrier and the warning (or lockdown) comes back at once.
+  let fakeComeback = null;
+  if (state.comeback && current) {
+    if (current.category !== 'slack') state.comeback.left = true;
+    else if (state.comeback.left || now - state.comeback.at > 20e3) {
+      fakeComeback = { awaySec: Math.max(1, Math.round((now - state.comeback.at) / 1000)) };
+      state.fakeComebacks = (state.fakeComebacks || 0) + 1;
+      state.comeback = null;
+      state.lastFire = { level: 0, at: 0 }; // warn again right away
+      state.snoozeUntil = 0;
+      day.events.fakeComebacks = (day.events.fakeComebacks || 0) + 1;
+      dayDirty = true;
+      if (mem) {
+        addIncident(mem, { kind: 'fake-comeback', site: siteName(current.domain), level: state.level || 0, summary: `Clicked "Back to work", then came back to ${siteName(current.domain)} ${fakeComeback.awaySec}s later.` });
+        memDirty = true;
+      }
+    }
+  }
+
   // 4) Decide whether Hackie acts.
   const decision = decide(state, settings, day, now);
+  let zeroLock = false;
+  if (settings.zeroSlack && current?.category === 'slack' && !decision.snoozed) {
+    // Wait for the AI's verdict on this page if it's still coming (a lecture on YouTube isn't slacking).
+    const pendingAI = current.needsAI && !current.sensitive && current.source !== 'ai' && aiInflight.has(`${taskSignature(settings)}|${current.pageKey}`);
+    if (!pendingAI) {
+      zeroLock = true;
+      decision.level = 3;
+      decision.zeroSlack = true;
+      if (state.lastFire.level < 3 || !state.lockdown) decision.fire = true;
+    }
+  }
   state.level = decision.level;
   state.overBudget = decision.overBudget;
   let fireMsg = null;
@@ -525,10 +577,29 @@ async function refresh(trigger = 'tick') {
     day.events[evKey] += 1;
     dayDirty = true;
     fireMsg = buildFire(state, settings, decision, day);
-    fireMsg.aiPending = wantsEventAI(settings, state, 'fire', decision.level);
+    if (decision.level >= 3) state.lockdown = { at: state.lockdown?.at || now };
+    if (decision.zeroSlack) {
+      fireMsg.message = zeroSlackLine({ site: fireMsg.site, task: fireMsg.task });
+      fireMsg.mood = 'furious';
+    }
+    if (fakeComeback) {
+      const away = fakeComeback.awaySec < 90 ? `${fakeComeback.awaySec} seconds` : humanMinutes(fakeComeback.awaySec);
+      fireMsg.fakeComeback = fakeComeback;
+      fireMsg.message = fakeComebackLine({ site: fireMsg.site, task: fireMsg.task, away });
+      fireMsg.mood = state.fakeComebacks >= 2 ? 'furious' : decision.level >= 3 ? 'furious' : 'angry';
+    }
+    fireMsg.aiPending = decision.zeroSlack ? false : wantsEventAI(settings, state, 'fire', decision.level); // zero-slack opens the task page itself
     if (mem && decision.level >= 3) {
       addIncident(mem, { kind: 'lockdown', site: siteName(current.domain), level: 3, begs: state.lockdownBegs || 0, summary: `Lockdown after ${humanMinutes(state.streak.slack)}.` });
       memDirty = true;
+    }
+  }
+  let openTask = false;
+  if (zeroLock && current?.tracked) {
+    state.zeroOpened = Object.fromEntries(Object.entries(state.zeroOpened || {}).filter(([, at]) => now - at < 30 * 60e3));
+    if (!state.zeroOpened[current.pageKey]) {
+      state.zeroOpened[current.pageKey] = now;
+      openTask = true;
     }
   }
   if (dayDirty) await saveDay(day);
@@ -541,7 +612,15 @@ async function refresh(trigger = 'tick') {
     sendToTab(prev.tabId, { type: 'pomo:status', status: { category: 'inactive' } });
   }
   if (current?.tracked) {
-    await sendToTab(current.tabId, { type: 'pomo:status', status: buildStatus(state, settings, decision, now, day) });
+    const status = buildStatus(state, settings, decision, now, day);
+    const paused = now < Math.max(state.snoozeUntil || 0, state.breakUntil || 0);
+    if (state.lockdown && current.category === 'slack' && !paused && !(fireMsg && fireMsg.level >= 3)) {
+      // Navigating away and back (or opening a new slacking tab) doesn't escape a lockdown.
+      const again = buildFire(state, settings, { ...decision, level: 3 }, day);
+      status.lockdown = { ...again, resumed: true, aiPending: false, mood: 'furious', message: settings.zeroSlack ? zeroSlackLine({ site: again.site, task: again.task }) : lockdownStaysLine({ site: again.site, task: again.task }) };
+    }
+    await sendToTab(current.tabId, { type: 'pomo:status', status });
+    if (openTask) openTaskBeside(current, settings).catch((err) => console.warn('[TaskWhip] could not open the task page', err)); // not awaited: tab events refresh again
     if (fireMsg) {
       await deliverFire(current, fireMsg);
       if (fireMsg.aiPending) runEventAI('fire', { fire: fireMsg }); // fire-and-forget: AI bubble + tab actions
@@ -662,7 +741,10 @@ async function handleAction(action, tab) {
   const goBack = await mutate(async ({ settings, state, day, now }) => {
     if (action === 'back') {
       day.events.comebacks += 1;
-      resetStreak(state);
+      // A promise, not a reset: the streak, snoozes, begs and any lockdown stay until real work
+      // (thresholds.streakResetMin of work time). Coming straight back is a fake comeback.
+      state.comeback = { at: now, left: false, level: Math.max(state.lastFire?.level || 0, state.level || 0) };
+      state.snoozeUntil = 0;
       state.current = null; // we're leaving this page; don't bank any more of it
       return { state, settings };
     }
@@ -721,9 +803,11 @@ async function setCategory({ scope, category, url }) {
     settings.workSites = settings.workSites.filter(keep);
     settings.slackSites = settings.slackSites.filter(keep);
     const bare = host.replace(/^m\./, '');
-    if (category === 'work') settings.workSites.push(bare);
+    for (const h of Object.keys(overrides.sites)) if (h === bare || h === host) delete overrides.sites[h];
+    // Work/neutral site labels are judged page by page (see classifyPage); slacking is a plain rule.
+    if (category === 'work' || category === 'neutral') overrides.sites[bare] = category;
     if (category === 'slack') settings.slackSites.push(bare);
-    await chrome.storage.local.set({ settings });
+    await chrome.storage.local.set({ settings, overrides });
   }
   await refresh('setCategory');
   return { ok: true };
@@ -964,8 +1048,10 @@ const agentApi = {
     if (findSensitive({ url: `https://${host}/`, list: settings.sensitiveSites })) {
       return { ok: false, error: 'That site is on the sensitive list; change it in settings instead.' };
     }
+    const review = await reviewLabelChange({ url: `https://${host}/`, scope: 'site', category });
+    if (!review.allow) return { ok: false, denied: true, error: `Hackie's review refused that label: ${review.message}` };
     await serial(() => setCategory({ scope: 'site', category, url: `https://${host}/` }));
-    return { ok: true, site: host, category };
+    return { ok: true, site: host, category, ...(review.message ? { review: review.message } : {}), note: category === 'slack' ? undefined : 'Each page of the site is still judged on its own.' };
   },
   async takeBreak(minutes) {
     await serial(() => setBreak(minutes));
@@ -1001,6 +1087,9 @@ async function agentContext(settings) {
     lastWarning: state.lastFire?.level ? LEVEL_NAME[state.lastFire.level] : null,
     snoozesInARow: state.snoozeCount || 0,
     lockdownBegs: state.lockdownBegs || 0,
+    fakeComebacks: state.fakeComebacks || 0,
+    lockdownActive: Boolean(state.lockdown),
+    backToWorkPending: Boolean(state.comeback),
     todayMin: { work: Math.round(day.totals.work / 60), slack: Math.round(day.totals.slack / 60) },
     refusedToday: day.events.denials || 0,
     exercisesToday: day.events.exercises || 0,
@@ -1014,7 +1103,7 @@ async function agentContext(settings) {
 async function askHackie(question) {
   const settings = await loadSettings();
   if (!aiConfigured(settings)) {
-    return { ok: false, error: 'Set up an AI provider and key in TaskWhip settings (AI section) to chat with Hackie.' };
+    return { ok: false, error: "Set up an AI provider and key in Hackie's settings (AI section) to chat with him." };
   }
   const { agentChat = [] } = await chrome.storage.session.get('agentChat');
   const started = Date.now();
@@ -1385,6 +1474,7 @@ async function runEventAI(reason, { fire = null, tab = null, force = false } = {
         sensitive,
         memory: memoryEnabled ? memoryForPrompt(mem) : {},
         permissions,
+        note: fire?.fakeComeback ? `The user clicked "Back to work", then came back to slacking ${fire.fakeComeback.awaySec}s later (fake comeback #${state.fakeComebacks || 1}). Call it out.` : '',
       }),
       tools: createEnforcerTools(api, { ...permissions, memoryEnabled }),
       maxTurns: 5,
@@ -1484,6 +1574,7 @@ function computeAnger(state, settings, now = Date.now()) {
     habit: state.current?.habit?.level || 'none',
     overBudget: Boolean(state.overBudget),
     lastEnforcedAt: state.lastEnforcedAt || 0,
+    fakeComebacks: state.fakeComebacks || 0,
     closeAfterBegs: settings.ai.actions?.closeAfterBegs || 2,
     now,
   });
@@ -1594,6 +1685,222 @@ async function judgeClick(action, tab) {
 }
 
 // ---------------------------------------------------------------------------
+// Zero-slack mode: put the task page right next to the locked slacking tab (or bring it forward).
+
+async function openTaskBeside(slack, settings) {
+  const mem = settings.memory?.enabled ? await loadMemory() : null;
+  const st = await loadState();
+  const target = (mem ? workTargets(mem, settings, 1)[0]?.url : '') || workTargets({ projects: [], workPages: {} }, settings, 1)[0]?.url || st.lastWorkTab?.url;
+  if (!target) return null;
+  const tabs = await chrome.tabs.query({});
+  const existing = tabs.find((t) => t.url && t.id !== slack.tabId && pageKey(t.url) === pageKey(target));
+  if (existing) {
+    await chrome.tabs.update(existing.id, { active: true });
+    await chrome.windows.update(existing.windowId, { focused: true }).catch(() => {});
+    return existing;
+  }
+  const tab = await chrome.tabs.get(slack.tabId).catch(() => null);
+  return chrome.tabs.create({ url: target, active: true, ...(tab ? { windowId: tab.windowId, index: tab.index + 1 } : {}) });
+}
+
+// ---------------------------------------------------------------------------
+// Label changes that let the user off the hook (slack → work/neutral, neutral → work) go past the
+// AI reviewer (lib/review.js), page by page. Stricter labels always go through. Never call from
+// inside a serial() task.
+
+const REVIEW_MAX = 3; // attempts per page or site, per 10 minutes
+
+async function reviewLabelChange({ url, scope = 'page', category, tab = null }) {
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return { allow: true, message: '' };
+  }
+  const settings = await loadSettings();
+  if (!aiConfigured(settings)) return { allow: true, message: '' }; // nobody to review it
+  const now = Date.now();
+  const [state, overrides, day] = await Promise.all([loadState(), loadOverrides(), loadDay()]);
+  const host = u.hostname.toLowerCase().replace(/^www\./, '');
+  const key = pageKey(url);
+  // The page the user is looking at, if it's this page (or, for a site label, on this site).
+  const cur = state.current;
+  const tabId = tab?.id ?? cur?.tabId;
+  const rawCtx = tabId != null ? await loadCtx(tabId) : null;
+  let page = null;
+  if (rawCtx) {
+    const ctxHost = new URL(rawCtx.url).hostname.toLowerCase().replace(/^www\./, '');
+    if (pageKey(rawCtx.url) === key || (scope === 'site' && (ctxHost === host || ctxHost.endsWith('.' + host)))) page = rawCtx;
+  }
+  const target = page?.url || url;
+  const sensitive = findSensitive({ url: target, ctx: page, list: settings.sensitiveSites });
+  const aiVerdict = await cachedVerdict(settings, pageKey(target));
+  // A page's label is what Hackie has it as now; a site's label is the site's own rule.
+  const from = sensitive
+    ? 'slack'
+    : scope === 'site'
+    ? classifyPage({ url: `${u.protocol}//${u.host}/`, ctx: null, settings, overrides, aiVerdict: null }).category
+    : classifyPage({ url: target, ctx: page, settings, overrides, aiVerdict }).category;
+  if (!loosens(from, category)) return { allow: true, message: '', from };
+  if (await aiPaused()) return { allow: false, message: "Hackie's AI is resting (rate limit), so he can't review label changes right now. Try later." };
+
+  const reviewKey = `${scope}:${scope === 'site' ? host : key}`;
+  const { labelReviews = {} } = await chrome.storage.session.get('labelReviews');
+  const recent = (labelReviews[reviewKey] || []).filter((r) => now - r.at < 10 * 60e3);
+  if (recent.length >= REVIEW_MAX && !recent.some((r) => r.approve)) {
+    return { allow: false, message: `You've asked three times. The label stays. Back to ${taskLabel(settings)}.` };
+  }
+  const anger = computeAnger(state, settings, now);
+  let r;
+  try {
+    r = await reviewLabel({
+      config: aiConfig(settings),
+      task: settings.task,
+      mood: anger.label,
+      from,
+      to: category,
+      scope,
+      domain: host,
+      url: target,
+      page: sensitive ? null : page,
+      sensitive: Boolean(sensitive),
+      memory: settings.memory?.enabled ? memoryForPrompt(await loadMemory()) : {},
+      situation: {
+        mood: anger.label,
+        why: anger.reasons,
+        slackingForMin: Math.round((state.streak?.slack || 0) / 60),
+        snoozesInARow: state.snoozeCount || 0,
+        lockdownActive: Boolean(state.lockdown),
+        todayMin: { work: Math.round(day.totals.work / 60), slack: Math.round(day.totals.slack / 60) },
+      },
+      signal: AbortSignal.timeout(20000),
+    });
+    if (r.model) await chrome.storage.local.set({ aiPauseUntil: 0, aiStatus: { ok: true, at: Date.now(), model: r.model } });
+  } catch (err) {
+    await noteAiFailure(err);
+    return { allow: false, message: `Hackie couldn't review that change right now (${err.message}). Try again in a moment.` };
+  }
+  labelReviews[reviewKey] = [...recent, { at: now, approve: r.approve }];
+  await chrome.storage.session.set({ labelReviews });
+  if (settings.memory?.enabled) {
+    await updateMemory((m) =>
+      addIncident(m, { kind: 'relabel', site: sensitive ? 'Private site' : host, from, to: category, scope, outcome: r.approve ? 'approved' : 'denied', summary: r.message }),
+    );
+  }
+  if (!r.approve) {
+    await serial(() =>
+      mutate(({ day: d }) => {
+        d.events.relabelsDenied = (d.events.relabelsDenied || 0) + 1;
+      }),
+    );
+  }
+  return { allow: r.approve, message: r.message, from };
+}
+
+// ---------------------------------------------------------------------------
+// Replies in Hackie's speech bubble: the AI judge hears the user out and may reconsider
+// (lib/appeal.js). Never call from inside a serial() task.
+
+async function handleAppeal(msg, tab) {
+  const text = String(msg.text || '').replace(/\s+/g, ' ').trim().slice(0, 300);
+  if (!text) return { ok: false, error: 'Say something first.' };
+  const settings = await loadSettings();
+  if (!aiConfigured(settings)) return { ok: false, error: 'Hackie needs an AI provider and key (Settings → AI) to hear replies.' };
+  if (await aiPaused()) return { ok: false, error: "Hackie's AI is resting (rate limit). Try again later." };
+  const now = Date.now();
+  const state = await loadState();
+  const cur = state.current;
+  if (!cur || (tab?.id != null && cur.tabId !== tab.id)) return { ok: false, error: 'Hackie is looking at another tab right now.' };
+  if (cur.sensitive) return { ok: false, error: "Hackie doesn't discuss private sites. If it's really work, remove it from the sensitive list." };
+
+  const kind = msg.kind === 'refusal' && OVERRIDABLE[msg.action] ? 'refusal' : 'warning';
+  const action = kind === 'refusal' ? msg.action : null;
+  const key = pageKey(cur.url);
+  const { appeals = {} } = await chrome.storage.session.get('appeals');
+  for (const k of Object.keys(appeals)) {
+    appeals[k] = appeals[k].filter((a) => now - a.at < APPEAL_WINDOW_MS);
+    if (!appeals[k].length) delete appeals[k];
+  }
+  const recent = appeals[key] || [];
+  if (recent.length >= MAX_APPEALS) {
+    return { ok: true, verdict: 'slack', allow: false, reconsidered: false, final: true, message: `I've heard enough about this page. Back to ${taskLabel(settings)}.` };
+  }
+
+  const anger = computeAnger(state, settings, now);
+  const rawCtx = await loadCtx(cur.tabId);
+  const page = rawCtx && pageKey(rawCtx.url) === key ? rawCtx : null;
+  const day = await loadDay();
+  let result;
+  try {
+    result = await appeal({
+      config: aiConfig(settings),
+      task: settings.task,
+      mood: anger.label,
+      kind,
+      action,
+      reply: text,
+      previous: { category: cur.category, reason: cur.reason, source: cur.source, said: msg.said },
+      situation: {
+        site: siteName(cur.domain),
+        slackingForMin: Math.round((state.streak?.slack || 0) / 60),
+        snoozesInARow: state.snoozeCount || 0,
+        lockdownBegs: state.lockdownBegs || 0,
+        fakeComebacks: state.fakeComebacks || 0,
+        lockdownActive: Boolean(state.lockdown),
+        todayMin: { work: Math.round(day.totals.work / 60), slack: Math.round(day.totals.slack / 60) },
+        mood: anger.label,
+        why: anger.reasons,
+      },
+      page,
+      memory: settings.memory?.enabled ? memoryForPrompt(await loadMemory()) : {},
+      history: recent.map((a) => ({ user: a.text, hackie: a.reply })),
+      signal: AbortSignal.timeout(20000),
+    });
+    await chrome.storage.local.set({ aiPauseUntil: 0, aiStatus: { ok: true, at: Date.now(), model: result.model } });
+  } catch (err) {
+    await noteAiFailure(err);
+    return { ok: false, error: `Hackie couldn't think that through (${err.message}). Try again.` };
+  }
+
+  appeals[key] = [...recent, { at: now, text, reply: result.message, verdict: result.verdict, allow: result.allow }];
+  await chrome.storage.session.set({ appeals });
+  const outcome = result.verdict === 'work' ? 'reclassified' : result.allow ? 'allowed' : 'denied';
+  if (settings.memory?.enabled) {
+    await updateMemory((m) => addIncident(m, { kind: 'reply', action: action || 'warning', site: siteName(cur.domain), outcome, summary: `"${text.slice(0, 100)}" → ${result.message}` }));
+  }
+
+  if (result.verdict === 'work') {
+    // Convinced: this page is work from now on (like an accepted "It's for my task").
+    await serial(() => handleAction('isWork', tab || { id: cur.tabId, url: cur.url }));
+  } else if (result.allow && action === 'beg') {
+    // A granted beg is a plain snooze; it was already counted as a beg when refused.
+    await serial(() => mutate(({ state: st, settings: s, day: d, now: t }) => {
+      const minutes = snoozeMinutes(st.snoozeCount || 0, s.thresholds.snoozeMin);
+      st.snoozeUntil = t + minutes * 60e3;
+      st.snoozeCount = (st.snoozeCount || 0) + 1;
+      d.events.snoozes += 1;
+    }));
+  } else if (result.allow && ['snooze', 'isWork', 'exercise', 'resetMood'].includes(action)) {
+    await serial(() => handleAction(action, tab || { id: cur.tabId, url: cur.url }));
+  } else if (!result.allow) {
+    await serial(() => mutate(({ day: d }) => {
+      d.events.repliesDenied = (d.events.repliesDenied || 0) + 1;
+    }));
+  }
+  kick('reply');
+  return {
+    ok: true,
+    verdict: result.verdict,
+    allow: result.allow,
+    action,
+    reconsidered: outcome !== 'denied',
+    message: result.message,
+    left: MAX_APPEALS - appeals[key].length,
+    final: outcome === 'denied' && appeals[key].length >= MAX_APPEALS,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Messages
 
 // Hackie's art for web pages, as data: URLs. Pages never load chrome-extension:// files themselves
@@ -1602,13 +1909,14 @@ async function judgeClick(action, tab) {
 let artPromise = null;
 function loadArt() {
   artPromise ||= Promise.all(
-    globalThis.Hackie.ART_FILES.map(async (path) => {
+    [...globalThis.Hackie.ART_FILES, globalThis.Hackie.FONT].map(async (path) => {
       const res = await fetch(chrome.runtime.getURL(path));
       if (!res.ok) throw new Error(`${path}: HTTP ${res.status}`);
       const bytes = new Uint8Array(await res.arrayBuffer());
       let bin = '';
       for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-      return [path, `data:${path.endsWith('.gif') ? 'image/gif' : 'image/png'};base64,${btoa(bin)}`];
+      const type = path.endsWith('.gif') ? 'image/gif' : path.endsWith('.woff2') ? 'font/woff2' : 'image/png';
+      return [path, `data:${type};base64,${btoa(bin)}`];
     }),
   )
     .then(Object.fromEntries)
@@ -1645,6 +1953,11 @@ const HANDLERS = {
       judged = await judgeClick(isBeg ? 'beg' : action, sender.tab);
       if (!judged.allow) return { ok: false, denied: true, action: isBeg ? 'beg' : action, message: judged.message };
     }
+    if (action === 'isWork' && !(judged?.anger?.level >= 2 && judged.message)) {
+      const review = await reviewLabelChange({ url: sender.tab?.url, scope: 'page', category: 'work', tab: sender.tab });
+      if (!review.allow) return { ok: false, denied: true, action, message: review.message };
+      if (review.message) judged = { ...(judged || {}), message: review.message };
+    }
     const res = await serial(() => handleAction(action, sender.tab));
     return { ...res, message: judged?.message || '' };
   },
@@ -1653,7 +1966,12 @@ const HANDLERS = {
       await refresh('popup');
       return buildPopupState();
     }),
-  'popup:setCategory': (msg) => serial(() => setCategory(msg)),
+  'popup:setCategory': async (msg) => {
+    const review = await reviewLabelChange({ url: msg.url, scope: msg.scope === 'page' ? 'page' : 'site', category: msg.category });
+    if (!review.allow) return { ok: false, denied: true, action: 'relabel', message: review.message };
+    const res = await serial(() => setCategory(msg));
+    return { ...res, message: review.message };
+  },
   'popup:break': async (msg) => {
     const minutes = Number(msg.minutes) || 0;
     if (minutes > 0) {
@@ -1731,6 +2049,7 @@ const HANDLERS = {
     return restoreClosed(Number.isInteger(msg.index) ? msg.index : undefined);
   },
   'agent:ask': (msg) => askHackie(msg.question),
+  'appeal:send': (msg, sender) => handleAppeal(msg, sender.tab),
   'agent:history': async () => {
     const { agentChat = [] } = await chrome.storage.session.get('agentChat');
     const settings = await loadSettings();
@@ -1815,6 +2134,7 @@ globalThis.taskwhip = {
   eventAI: (reason, opts) => runEventAI(reason, opts),
   memory: loadMemory,
   judge: (action, tab) => judgeClick(action, tab),
+  relabel: (msg) => HANDLERS['popup:setCategory'](msg),
   anger: async () => computeAnger(await loadState(), await loadSettings()),
   restore: (index) => restoreClosed(index),
   flagSite: (domain, flagged = true) => updateMemory((mem) => flagSite(mem, domain, flagged)),

@@ -30,8 +30,11 @@
     : getArt()
         .then((art) => art || new Promise((r) => setTimeout(r, 1000)).then(getArt))
         .then((art) => {
-          if (art) Hackie.useArt(art);
-          else console.warn("[TaskWhip] Could not load Hackie's art. Reload the extension at chrome://extensions.");
+          if (art) {
+            Hackie.useArt(art);
+            // The team's font (Inter ExtraBold) as "HackieInter", from the bytes in the art payload.
+            Hackie.installFont?.();
+          } else console.warn("[TaskWhip] Could not load Hackie's art. Reload the extension at chrome://extensions.");
           artReady = true;
           faceKey = '';
           render();
@@ -166,143 +169,173 @@
   const HOVER_RADIUS = 130; // mouse this close -> Hackie stops and gets curious
   const SIDE_GAP = 8;
   const EXPRESSION_EVERY_MS = 6000;
+  const DRAG_THRESHOLD = 5; // px the pointer must move before a press on Hackie becomes a drag
+  const GLIDE_MS = 350; // after a drop, how long Hackie takes to slide back to the nearest edge
   const MOOD_LABEL = {
     happy: 'Happy 😊', wink: 'Winking 😉', surprised: 'Surprised 😮', sleepy: 'Sleepy 💤', silly: 'Silly 🤪',
     cool: 'Feeling cool 😎', love: 'In love 💕', curious: 'Curious ❓', stern: 'Watching 🤨',
     worried: 'Worried 😟', angry: 'Angry 💢', furious: 'Angry mom 🤬',
   };
 
+  // The team's look: flat teal (#247287) bubbles, pill and panels with white Inter ExtraBold,
+  // translucent white buttons, no borders or shadows. Same in light and dark mode.
+  const FONT_STACK = '"HackieInter", Inter, ui-sans-serif, system-ui, sans-serif';
   const CSS = `
 :host { all: initial; }
 * { box-sizing: border-box; }
 .layer {
   position: fixed; inset: 0; pointer-events: none; z-index: 2147483647;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  font-size: 14px; line-height: 1.4; color: var(--fg); -webkit-font-smoothing: antialiased;
-  --bg: #fffdf9; --fg: #24201d; --muted: #6f6861; --line: rgba(36,32,29,.12);
-  --brand: #ff5309; --brand-deep: #d94400; --tomato: #e5484d; --tomato-deep: #c4271e;
-  --leaf: #2f9e57; --amber: #c27803; --angry-bg: #ffe3e0;
-  --shadow: 0 18px 50px rgba(40,12,6,.28), 0 2px 8px rgba(40,12,6,.12);
+  font-family: ${FONT_STACK}; font-weight: 800; font-size: 14px; line-height: 1.4; color: #fff;
+  -webkit-font-smoothing: antialiased;
+  --teal: #247287; --glass: rgba(255,255,255,.2); --glass-hi: rgba(255,255,255,.35);
+  --soft: rgba(255,255,255,.85); --dim: rgba(255,255,255,.72);
 }
-@media (prefers-color-scheme: dark) {
-  .layer { --bg: #262120; --fg: #f6efe9; --muted: #b5aba3; --line: rgba(255,255,255,.14);
-    --amber: #f3a93b; --angry-bg: #4a2321; --shadow: 0 18px 50px rgba(0,0,0,.6), 0 2px 8px rgba(0,0,0,.4); }
-}
+b, strong, h2, h3 { font-weight: 800; }
 button { font: inherit; }
 
 /* Hackie + whatever is next to him */
 .walker { position: absolute; left: 0; top: 0; width: ${HK}px; height: ${HK}px; will-change: transform; }
 .walker[hidden] { display: none; }
 .hk-box {
-  position: absolute; inset: 0; pointer-events: auto; cursor: pointer; --hk-badge-size: 20px;
-  animation: bob 1.4s ease-in-out infinite; filter: drop-shadow(0 6px 8px rgba(0,0,0,.28));
-  appearance: none; border: 0; padding: 0; background: none;
+  position: absolute; inset: 0; pointer-events: auto; cursor: grab; --hk-badge-size: 20px;
+  animation: bob 1.4s ease-in-out infinite; appearance: none; border: 0; padding: 0; background: none;
+  touch-action: none; user-select: none; -webkit-user-select: none;
 }
-.hk-box:focus-visible { outline: 2px solid var(--brand); outline-offset: 4px; border-radius: 8px; }
+.hk-box[data-grabbed] { cursor: grabbing; animation: none; }
+.hk-box:focus-visible { outline: 2px solid var(--teal); outline-offset: 4px; border-radius: 8px; }
 .hk-furious .hk-sprite { animation: shake .35s linear infinite; }
 .hk-whip { transform-box: view-box; transform-origin: 15px 64px; }
 .side { position: absolute; top: 0; pointer-events: auto; }
 .side:empty { display: none; }
 
+/* countdown pill: teal, white; warnings get a white ring instead of a color change */
 .pill {
-  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; padding: 5px 12px; border-radius: 999px;
-  background: var(--bg); color: var(--fg); border: 1px solid var(--line); box-shadow: 0 6px 18px rgba(0,0,0,.2);
-  font-weight: 650; font-variant-numeric: tabular-nums; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; padding: 5px 12px; border-radius: 14px;
+  background: var(--teal); color: #fff; border: 0; box-shadow: none; font-size: 14px; font-weight: 800;
+  font-variant-numeric: tabular-nums; cursor: pointer;
 }
-.pill .site { color: var(--muted); font-weight: 550; }
-.pill.warn .time { color: var(--amber); }
-.pill.hot { background: var(--tomato); color: #fff; border-color: transparent; }
-.pill.hot .site { color: rgba(255,255,255,.85); }
-.pill.snoozed { opacity: .9; }
-.pill.angry { background: var(--angry-bg); }
+.pill .site { color: var(--dim); }
+.pill.warn { outline: 2px solid rgba(255,255,255,.45); outline-offset: -2px; }
+.pill.hot, .pill.angry { outline: 2px solid #fff; outline-offset: -2px; }
+.pill.hot .site, .pill.angry .site { color: #fff; }
 
-.bubble, .panel {
-  position: relative; width: min(330px, calc(100vw - ${HK + 3 * EDGE}px)); background: var(--bg); color: var(--fg);
-  border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; box-shadow: var(--shadow);
+/* speech bubble (nudge, whip, refusal, cheer) */
+.bubble {
+  position: relative; width: min(320px, calc(100vw - ${HK + 3 * EDGE}px)); background: var(--teal); color: #fff;
+  border: 0; border-radius: 12px; padding: 12px 14px; box-shadow: none; font-size: 14px; line-height: 1.4;
 }
-.bubble.angry { background: var(--angry-bg); }
-.bubble.cheer { width: max-content; max-width: 260px; font-weight: 650; }
+.bubble.cheer { width: max-content; max-width: min(260px, calc(100vw - ${HK + 3 * EDGE}px)); }
 .enter { animation: pop-in .35s cubic-bezier(.2,1.4,.4,1); }
 .tag {
-  font-size: 11px; font-weight: 750; letter-spacing: .07em; text-transform: uppercase;
-  color: var(--brand-deep); margin-bottom: 6px; padding-right: 22px;
+  font-size: 11px; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--dim); margin-bottom: 6px; padding-right: 22px;
 }
-.msg { margin: 0 0 8px; font-size: 14.5px; font-weight: 520; text-wrap: pretty; }
-.exercise { margin: 0 0 10px; font-size: 13px; color: var(--muted); }
-.exercise b { color: var(--fg); }
-.crack { display: inline-block; font-weight: 900; color: var(--tomato-deep); margin-right: 6px; transform: rotate(-5deg); }
+.msg { margin: 0 0 8px; font-size: 14px; text-wrap: pretty; }
+.exercise { margin: 0 0 10px; font-size: 13px; color: var(--soft); }
+.exercise b { color: #fff; }
+.crack {
+  display: inline-block; margin-right: 6px; padding: 0 5px; border-radius: 4px; background: var(--glass);
+  color: #fff; letter-spacing: .04em; transform: rotate(-5deg);
+}
 .actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .btn {
-  appearance: none; font-size: 13px; font-weight: 650; border-radius: 10px; padding: 7px 11px;
-  border: 1px solid var(--line); background: transparent; color: var(--fg); cursor: pointer;
-  transition: background .15s, transform .1s;
+  appearance: none; font: inherit; font-size: 13px; border: 0; border-radius: 6px; padding: 5px 10px;
+  background: var(--glass); color: #fff; cursor: pointer; transition: background .15s, transform .1s;
 }
-.btn:hover { background: rgba(127,127,127,.13); }
+.btn:hover { background: var(--glass-hi); }
 .btn:active { transform: scale(.97); }
-.btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
-.btn.primary:hover { background: var(--brand-deep); border-color: var(--brand-deep); }
-.btn.good { background: var(--leaf); border-color: var(--leaf); color: #fff; }
-.btn.ghost { border-color: transparent; color: var(--muted); }
-.btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
-.btn:focus-visible, .link:focus-visible, .x:focus-visible, .pill:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.btn.primary { background: #fff; color: var(--teal); }
+.btn.primary:hover { background: rgba(255,255,255,.86); }
+.btn.ghost { background: rgba(255,255,255,.1); color: var(--soft); }
+.btn.ghost:hover { background: var(--glass); color: #fff; }
+.btn:disabled, .btn:disabled:hover { opacity: .45; cursor: not-allowed; transform: none; background: var(--glass); }
+.btn.primary:disabled { background: #fff; }
+.btn.denied, .btn.denied:hover { text-decoration: line-through; opacity: .55; cursor: not-allowed; background: rgba(255,255,255,.1); }
+.btn:focus-visible, .link:focus-visible, .x:focus-visible, .pill:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 .x {
-  position: absolute; top: 7px; right: 7px; width: 26px; height: 26px; border: 0; border-radius: 8px;
-  background: transparent; color: var(--muted); font-size: 18px; line-height: 1; cursor: pointer;
+  position: absolute; top: 9px; right: 9px; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 4px;
+  background: none; color: #fff; font-size: 13px; line-height: 22px; text-align: center; cursor: pointer;
 }
-.x:hover { background: rgba(127,127,127,.13); }
+.x:hover { background: var(--glass); }
 
-/* report panel (click Hackie) */
-.panel h3 { margin: 0 0 8px; font-size: 14px; padding-right: 26px; }
-.rows { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 13px; }
-.rows span { color: var(--muted); }
+/* report panel (click Hackie): the team's "Hackie's report" */
+.panel {
+  position: relative; width: min(280px, calc(100vw - ${HK + 3 * EDGE}px)); background: var(--teal); color: #fff;
+  border: 0; border-radius: 12px; padding: 12px 14px; box-shadow: none; font-size: 13px; line-height: 1.4;
+}
+.panel h3 { margin: 0; font-size: 14px; line-height: 22px; padding-right: 26px; }
+.rows { display: grid; grid-template-columns: auto 1fr; gap: 7px 10px; margin-top: 7px; font-size: 13px; }
+.rows span { color: #fff; }
 .rows b { text-align: right; font-variant-numeric: tabular-nums; }
-.note { margin: 8px 0 10px; font-size: 12.5px; color: var(--muted); }
-.demo { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--line); font-size: 12px; color: var(--muted); }
-.demo input { width: 100%; margin: 4px 0 0; accent-color: var(--brand); }
+.note { margin: 8px 0 0; font-size: 12px; color: var(--soft); }
+.panel .actions { margin-top: 10px; }
+.panel > .x { top: 12px; right: 10px; }
+.demo { display: block; margin-top: 10px; padding-top: 6px; border-top: 1px dashed rgba(255,255,255,.6); font-size: 12px; color: #fff; }
+.demo input { width: 100%; margin: 4px 0 0; accent-color: #fff; }
 
 /* red vignette on whip */
 .flash { position: absolute; inset: 0; opacity: 0;
   background: radial-gradient(ellipse at center, rgba(229,72,77,0) 40%, rgba(229,72,77,.6) 100%); }
 
-/* lockdown */
+/* lockdown: the teal panel on a dark, blurred page */
 .block {
   position: absolute; inset: 0; pointer-events: auto; display: grid; place-items: center;
-  background: rgba(24, 9, 6, .8); backdrop-filter: blur(7px); padding: 110px 16px 16px;
+  background: rgba(8, 20, 24, .78); backdrop-filter: blur(7px); padding: 110px 16px 16px;
   animation: fade-in .3s ease; overflow: auto;
 }
 .block[hidden] { display: none; }
-.block .panel { width: min(460px, 100%); text-align: center; padding: 26px 28px 20px; border-radius: 24px; animation: pop-in .42s cubic-bezier(.2,1.4,.4,1); }
+.block .panel {
+  width: min(460px, 100%); text-align: center; padding: 26px 28px 20px; border-radius: 12px; font-size: 14px;
+  animation: pop-in .42s cubic-bezier(.2,1.4,.4,1);
+}
 .block .big { width: 150px; height: 150px; /* 3x the 50px-wide crop */ margin: -112px auto 6px; --hk-badge-size: 30px; }
 .block .tag { padding: 0; }
-.block h2 { font-size: 26px; line-height: 1.15; margin: 0 0 8px; font-weight: 800; text-wrap: balance; }
-.block .msg { font-size: 16px; color: var(--muted); margin: 0; }
+.block h2 { font-size: 26px; line-height: 1.15; margin: 0 0 8px; text-wrap: balance; }
+.block .msg { font-size: 16px; color: var(--soft); margin: 0; }
 .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 18px 0 16px; }
-.stat { border: 1px solid var(--line); border-radius: 14px; padding: 10px 8px; }
-.stat span { display: block; font-size: 12px; color: var(--muted); }
-.stat b { font-size: 21px; font-variant-numeric: tabular-nums; }
-.stat.slack b { color: var(--tomato); }
-.stat.work b { color: var(--leaf); }
-.block .btn { width: 100%; padding: 11px; font-size: 14px; margin-top: 8px; }
+.stat { border: 0; border-radius: 10px; padding: 10px 8px; background: rgba(255,255,255,.14); }
+.stat span { display: block; font-size: 12px; color: var(--soft); }
+.stat b { font-size: 22px; font-variant-numeric: tabular-nums; }
+.stat.slack b { color: #ffc2b8; }
+.stat.work b { color: #aef2cb; }
+.block .btn { width: 100%; padding: 11px; font-size: 14px; margin-top: 8px; border-radius: 8px; }
 .link {
-  appearance: none; background: none; border: 0; font-size: 12.5px; color: var(--muted);
+  appearance: none; background: none; border: 0; font: inherit; font-size: 12.5px; color: var(--soft);
   text-decoration: underline; text-underline-offset: 3px; margin-top: 12px; cursor: pointer; padding: 4px;
 }
-.link:disabled { opacity: .4; cursor: not-allowed; }
+.link:hover { color: #fff; }
+.link:disabled { opacity: .45; cursor: not-allowed; }
 
 .toast {
-  position: absolute; left: 50%; bottom: 26px; max-width: calc(100vw - 32px);
-  background: #24201d; color: #fff; padding: 10px 16px; border-radius: 12px; font-weight: 600;
-  box-shadow: var(--shadow); pointer-events: none; animation: toast var(--toast-ms, 3200ms) ease forwards;
-  max-width: min(520px, calc(100vw - 32px)); text-align: center; line-height: 1.4;
+  position: absolute; left: 50%; bottom: 26px; max-width: min(520px, calc(100vw - 32px));
+  background: var(--teal); color: #fff; padding: 10px 16px; border-radius: 12px; border: 0; box-shadow: none;
+  font-size: 14px; pointer-events: none; animation: toast var(--toast-ms, 3200ms) ease forwards;
+  text-align: center; line-height: 1.4;
 }
 .typing { display: inline-flex; gap: 3px; margin-left: 6px; vertical-align: middle; }
-.typing i { width: 5px; height: 5px; border-radius: 50%; background: var(--brand); opacity: .35; animation: blink 1s infinite; }
+.typing i { width: 5px; height: 5px; border-radius: 50%; background: #fff; opacity: .35; animation: blink 1s infinite; }
 .typing i:nth-child(2) { animation-delay: .15s; } .typing i:nth-child(3) { animation-delay: .3s; }
 @keyframes blink { 50% { opacity: 1; } }
 .ai-line { animation: fade-in .4s ease; }
-.btn.denied { text-decoration: line-through; opacity: .55; cursor: not-allowed; }
-.deciding { display: block; margin: -4px 0 8px; font-size: 12.5px; font-weight: 650; color: var(--tomato-deep); }
+.deciding { display: block; margin: -4px 0 8px; font-size: 12.5px; color: var(--soft); }
 .bubble.refused { animation: shake .35s linear 2; }
+
+/* replying to Hackie */
+.reply { display: flex; gap: 6px; margin-top: 10px; }
+.reply input {
+  flex: 1; min-width: 0; font: inherit; font-size: 13px; padding: 5px 10px; border-radius: 6px; border: 0;
+  background: var(--glass); color: #fff;
+}
+.reply input::placeholder { color: rgba(255,255,255,.7); opacity: 1; }
+.reply input:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
+.reply input:disabled { opacity: .6; }
+.reply .btn { flex: none; }
+.block .reply { margin-top: 14px; }
+.block .reply .btn { width: auto; margin-top: 0; padding: 5px 14px; font-size: 13px; border-radius: 6px; }
+.you { margin: 0 0 6px; font-size: 12.5px; color: var(--dim); font-style: italic; }
+.reply-note, .reply-error { margin: 8px 0 0; font-size: 12.5px; color: var(--soft); }
+.reply-error { color: #fff; background: rgba(0,0,0,.18); padding: 4px 8px; border-radius: 6px; }
+.reply + .deciding { margin: 6px 0 0; }
 
 @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
 @keyframes shake { 0%, 100% { transform: translateX(0) rotate(0); } 25% { transform: translateX(-2px) rotate(-3deg); } 75% { transform: translateX(2px) rotate(3deg); } }
@@ -314,7 +347,7 @@ button { font: inherit; }
   100% { opacity: 0; transform: translate(-50%, 0); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .hk-box, .hk-furious .hk-sprite, .enter, .block, .block .panel { animation: none; }
+  .hk-box, .hk-furious .hk-sprite, .enter, .block, .block .panel, .bubble.refused, .ai-line { animation: none; }
 }
 `;
 
@@ -342,6 +375,10 @@ button { font: inherit; }
   let sideKey = '';
   let placeKey = '';
   let demoDragging = false;
+  let press = null; // pointer pressed on Hackie: { id, x, y, px, py } (a click until it moves)
+  let dragging = false; // Hackie is being carried around by the pointer
+  let lastDragEnd = 0; // when the last drag ended (so the drop isn't also a click)
+  let glide = null; // { from, t0 }: sliding back to the patrol edge after a drop
 
   function escapeHtml(s) {
     return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -403,8 +440,122 @@ button { font: inherit; }
     });
     pos = perimeterPoint(u);
     layer.addEventListener('click', onClick);
+    layer.addEventListener('submit', onReplySubmit);
+    for (const type of ['keydown', 'keyup', 'keypress']) {
+      layer.addEventListener(type, (e) => {
+        if (e.target?.closest?.('form.reply')) e.stopPropagation();
+      });
+    }
     ui.panel.addEventListener('input', onDemoInput);
     ui.panel.addEventListener('change', () => (demoDragging = false));
+    ui.hk.addEventListener('pointerdown', onPressHackie);
+    ui.hk.addEventListener('pointermove', onDragHackie);
+    ui.hk.addEventListener('pointerup', onDropHackie);
+    ui.hk.addEventListener('pointercancel', onDropHackie);
+    ui.hk.addEventListener('lostpointercapture', onDropHackie);
+  }
+
+  // ---- replying to Hackie (the AI judge may reconsider) --------------------------
+
+  let replying = false;
+  let blockRefused = null; // the click refused on the lockdown screen, if any
+  const canReply = (m) => Boolean(m?.canReply ?? status?.canReply);
+
+  function replyFormHtml(m, where) {
+    if (!canReply(m)) return '';
+    if (m.replyClosed) return `<p class="reply-note">${escapeHtml(m.replyClosed)}</p>`;
+    const pending = Boolean(m.replyPending);
+    return (
+      `<form class="reply" data-reply="${where}">` +
+      `<input name="say" type="text" maxlength="300" autocomplete="off" spellcheck="true" placeholder="Reply to Hackie…" aria-label="Reply to Hackie"${pending ? ' disabled' : ''}>` +
+      `<button class="btn" type="submit"${pending ? ' disabled' : ''}>Reply</button></form>` +
+      (pending ? `<span class="deciding" role="status">Hackie is reconsidering…${TYPING}</span>` : '') +
+      (m.replyError ? `<p class="reply-error" role="alert">${escapeHtml(m.replyError)}</p>` : '')
+    );
+  }
+
+  // Lockdown screen: swap its reply area in place.
+  function setBlockReply(state) {
+    const old = ui.block?.querySelector('.reply-area');
+    if (!old) return;
+    old.innerHTML = replyFormHtml({ canReply: true, ...state }, 'block');
+  }
+
+  async function onReplySubmit(e) {
+    const form = e.target?.closest?.('form.reply');
+    if (!form) return;
+    e.preventDefault();
+    const input = form.querySelector('input');
+    const text = (input?.value || '').trim();
+    if (!text || replying) return;
+    const where = form.dataset.reply;
+    const refused = where === 'nag' ? (nag?.refusedAt ? nag.denied?.[nag.denied.length - 1] : null) : blockRefused;
+    const said = where === 'nag' ? nag?.message : ui.block?.querySelector('.msg')?.textContent;
+    replying = true;
+    if (where === 'nag' && nag) {
+      nag = { ...nag, replyPending: true, replyError: '', youSaid: text };
+      sideKey = '';
+      render();
+    } else {
+      setBlockReply({ replyPending: true });
+    }
+    const res = await send({ type: 'appeal:send', text, kind: refused ? 'refusal' : 'warning', action: refused, said });
+    replying = false;
+    if (!res?.ok) {
+      const error = res?.error || "Hackie couldn't hear you. Try again.";
+      if (where === 'nag' && nag) {
+        nag = { ...nag, replyPending: false, replyError: error };
+        sideKey = '';
+        render();
+        const again = ui.side.querySelector('form.reply input');
+        if (again) again.value = text;
+      } else {
+        setBlockReply({ replyError: error });
+        const again = ui.block?.querySelector('form.reply input');
+        if (again) again.value = text;
+      }
+      return;
+    }
+    if (res.reconsidered) {
+      // Hackie changed his mind: the warning (or lockdown) goes away and he says so.
+      nag = null;
+      hideBlock();
+      setPanel(false);
+      showCheer(res.message);
+      return;
+    }
+    // Not convinced: Hackie answers in the same bubble (and the box is cleared for the next try).
+    if (where === 'nag' && nag) {
+      const sent = ui.side.querySelector('form.reply input');
+      if (sent) sent.value = '';
+      nag = {
+        ...nag,
+        message: res.message,
+        youSaid: text,
+        replyPending: false,
+        replyError: '',
+        replyClosed: res.final ? "Hackie has stopped listening to excuses about this page." : '',
+        aiDone: true,
+        aiPending: false,
+      };
+      sideKey = '';
+      render();
+    } else if (ui.block && !ui.block.hidden) {
+      const msgEl = ui.block.querySelector('.msg');
+      if (msgEl) {
+        msgEl.textContent = res.message;
+        msgEl.classList.add('ai-line');
+      }
+      let you = ui.block.querySelector('.you');
+      if (!you) {
+        you = document.createElement('p');
+        you.className = 'you';
+        msgEl?.before(you);
+      }
+      you.textContent = `You: "${text}"`;
+      setBlockReply({ replyClosed: res.final ? "Hackie has stopped listening to excuses about this page." : '' });
+      if (lastFire?.effects?.sound) playCrack();
+    }
   }
 
   function onClick(e) {
@@ -413,7 +564,10 @@ button { font: inherit; }
       act(target.dataset.act);
       return;
     }
-    if (e.target.closest('.hk-box') || e.target.closest('.pill')) setPanel(!panelOpen);
+    if (e.target.closest('.hk-box')) {
+      if (dragging || performance.now() - lastDragEnd < 300) return; // the end of a drag, not a click
+      setPanel(!panelOpen);
+    } else if (e.target.closest('.pill')) setPanel(!panelOpen);
   }
 
   function liveStreak() {
@@ -465,6 +619,7 @@ button { font: inherit; }
     const show = shouldShow();
     ui.walker.hidden = !show;
     if (!show) {
+      if (press) dropHackie(press.id, false); // e.g. the lockdown came up mid-drag
       stopLoops();
       return;
     }
@@ -496,6 +651,17 @@ button { font: inherit; }
   }
 
   function renderSide(mode) {
+    // Keep whatever the user was typing to Hackie across re-renders.
+    const draftEl = ui.side.querySelector('form.reply input');
+    const draft = draftEl?.value || '';
+    const draftFocused = Boolean(draftEl && ui.root.activeElement === draftEl);
+    renderSideInner(mode);
+    const fresh = ui.side.querySelector('form.reply input');
+    if (fresh && draft && !fresh.value) fresh.value = draft;
+    if (fresh && draftFocused) fresh.focus({ preventScroll: true });
+  }
+
+  function renderSideInner(mode) {
     if (panelOpen) {
       ui.side.innerHTML = '';
       return;
@@ -512,6 +678,7 @@ button { font: inherit; }
       ui.side.innerHTML =
         `<div class="bubble lvl-${m.level}${angry ? ' angry' : ''}${m.refusedAt ? ' refused' : ' enter'}" role="alertdialog" aria-label="Hackie says">` +
         `<div class="tag">${escapeHtml(tag)}</div>` +
+        (m.youSaid ? `<p class="you">You: "${escapeHtml(m.youSaid)}"</p>` : '') +
         `<p class="msg${m.aiDone ? ' ai-line' : ''}">${messageHtml(m.message)}${m.aiPending && !m.aiDone ? TYPING : ''}</p>` +
         (m.deciding ? `<span class="deciding" role="status">Hackie is deciding…${TYPING}</span>` : '') +
         (m.exercise ? `<p class="exercise">Or get up and do <b>${escapeHtml(m.exercise)}</b>.</p>` : '') +
@@ -521,7 +688,8 @@ button { font: inherit; }
         btn('snooze', '', denied.has('snooze') || denied.has('beg') ? 'Snooze denied' : `${escapeHtml(m.snoozeMin)} more min`) +
         (m.sensitive ? '' : btn('isWork', 'ghost', denied.has('isWork') ? 'Override denied' : "It's for my task")) +
         `</div>` +
-        (denied.has('dismiss') || m.deciding ? '' : `<button class="x" data-act="dismiss" aria-label="Dismiss">×</button>`) +
+        replyFormHtml(m, 'nag') +
+        (denied.has('dismiss') || m.deciding ? '' : `<button class="x" data-act="dismiss" aria-label="Dismiss">✕</button>`) +
         `</div>`;
     } else if (mode === 'cheer') {
       ui.side.innerHTML = `<div class="bubble cheer enter" role="status">${escapeHtml(cheer.text)}</div>`;
@@ -569,7 +737,7 @@ button { font: inherit; }
       ui.panel.innerHTML =
         `<div class="panel enter" role="dialog" aria-label="Hackie's report">` +
         `<h3>Hackie's report</h3>` +
-        `<button class="x" data-act="closePanel" aria-label="Close">×</button>` +
+        `<button class="x" data-act="closePanel" aria-label="Close">✕</button>` +
         `<div class="rows"></div><p class="note"></p>` +
         `<div class="actions">` +
         `<button class="btn primary" data-act="back">Back to work</button>` +
@@ -657,6 +825,78 @@ button { font: inherit; }
     return { x: b.minX, y: b.maxY - s };
   }
 
+  // The spot on the patrol loop closest to a point (where Hackie goes after a drop).
+  function nearestU(p) {
+    const b = bounds();
+    const w = b.maxX - b.minX;
+    const h = b.maxY - b.minY;
+    const x = Math.min(b.maxX, Math.max(b.minX, p.x));
+    const y = Math.min(b.maxY, Math.max(b.minY, p.y));
+    const dTop = y - b.minY;
+    const dRight = b.maxX - x;
+    const dBottom = b.maxY - y;
+    const dLeft = x - b.minX;
+    const m = Math.min(dTop, dRight, dBottom, dLeft);
+    let s;
+    if (m === dTop) s = x - b.minX; // top edge, going right
+    else if (m === dRight) s = w + (y - b.minY); // right edge, going down
+    else if (m === dBottom) s = w + h + (b.maxX - x); // bottom edge, going left
+    else s = 2 * w + h + (b.maxY - y); // left edge, going up
+    return s / (2 * (w + h));
+  }
+
+  // ---- drag Hackie anywhere (the team's drag-and-drop) ---------------------------
+  // Press and move more than DRAG_THRESHOLD px to pick him up; let go and he slides back to the
+  // nearest edge and keeps patrolling. Not while the lockdown is up.
+
+  function onPressHackie(e) {
+    if (e.button !== 0 || !ui.block.hidden || ui.walker.hidden) return;
+    press = { id: e.pointerId, x: e.clientX, y: e.clientY, px: pos.x, py: pos.y };
+    try {
+      ui.hk.setPointerCapture(e.pointerId);
+    } catch {
+      /* pointer already gone */
+    }
+  }
+
+  function onDragHackie(e) {
+    if (!press || e.pointerId !== press.id) return;
+    if (!ui.block.hidden || ui.walker.hidden) return dropHackie(e.pointerId, false);
+    const dx = e.clientX - press.x;
+    const dy = e.clientY - press.y;
+    if (!dragging) {
+      if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+      dragging = true;
+      glide = null;
+      ui.hk.dataset.grabbed = '1';
+    }
+    pos = {
+      x: Math.min(Math.max(0, viewW() - HK), Math.max(0, press.px + dx)),
+      y: Math.min(Math.max(0, viewH() - HK), Math.max(0, press.py + dy)),
+    };
+    ui.walker.style.transform = `translate(${pos.x}px, ${pos.y}px)`;
+    placeSide();
+  }
+
+  function onDropHackie(e) {
+    if (press && e.pointerId === press.id) dropHackie(e.pointerId, true);
+  }
+
+  function dropHackie(pointerId, glideBack) {
+    press = null;
+    try {
+      if (ui.hk.hasPointerCapture(pointerId)) ui.hk.releasePointerCapture(pointerId);
+    } catch {
+      /* already released */
+    }
+    if (!dragging) return;
+    dragging = false;
+    delete ui.hk.dataset.grabbed;
+    lastDragEnd = performance.now();
+    u = nearestU(pos);
+    glide = glideBack && !reducedMotion ? { from: { ...pos }, t0: performance.now() } : null;
+  }
+
   // Keep the bubble / pill / panel on whichever side of Hackie has room.
   function placeSide() {
     const el = panelOpen ? ui.panel : ui.side;
@@ -690,14 +930,24 @@ button { font: inherit; }
     }
     if (hovering && faceKey.startsWith('curious:')) Hackie.lookAt?.(ui.hk, mouse.x, mouse.y); // eyes follow the mouse
     // Walk, or ease to a stop when something wants Hackie's attention.
-    const still = Boolean(nag) || panelOpen || hovering || now < pauseUntil || reducedMotion;
+    const still = Boolean(nag) || panelOpen || hovering || dragging || now < pauseUntil || reducedMotion;
     speedFactor += ((still ? 0 : 1) - speedFactor) * Math.min(1, dt * 6);
-    if (speedFactor > 0.01) u += (dir * SPEED * speedFactor * dt) / perimeterLength();
+    if (speedFactor > 0.01 && !dragging && !glide) u += (dir * SPEED * speedFactor * dt) / perimeterLength();
     if (!still) {
       if (Math.random() < dt / 12) dir *= -1; // sometimes turn around
       if (Math.random() < dt / 10) pauseUntil = now + 1500 + Math.random() * 2500; // sometimes rest
     }
-    pos = perimeterPoint(u);
+    if (!dragging) {
+      // (while dragging, the pointer decides where he is)
+      const target = perimeterPoint(u);
+      if (glide) {
+        // just dropped: slide back to the patrol edge, cubic ease-out
+        const t = Math.min(1, Math.max(0, (performance.now() - glide.t0) / GLIDE_MS));
+        const ease = 1 - Math.pow(1 - t, 3);
+        pos = { x: glide.from.x + (target.x - glide.from.x) * ease, y: glide.from.y + (target.y - glide.from.y) * ease };
+        if (t >= 1) glide = null;
+      } else pos = target;
+    }
     ui.walker.style.transform = `translate(${pos.x}px, ${pos.y}px)`;
     placeSide();
     rafId = requestAnimationFrame(frame);
@@ -765,18 +1015,20 @@ button { font: inherit; }
     ui.block.innerHTML =
       `<div class="panel" role="alertdialog" aria-modal="true" aria-label="Hackie locked this page">` +
       `<div class="big">${Hackie.html({ mood: 'furious' })}</div>` +
-      `<div class="tag">${escapeHtml(msg.levelName)}</div>` +
-      `<h2>${escapeHtml(msg.minutesText)} on ${escapeHtml(msg.site)}.</h2>` +
+      `<div class="tag">${escapeHtml(msg.zeroSlack ? 'Zero-slack mode' : msg.levelName)}</div>` +
+      `<h2>${msg.zeroSlack ? `${escapeHtml(msg.site)} counts as slacking.` : `${escapeHtml(msg.minutesText)} on ${escapeHtml(msg.site)}.`}</h2>` +
       `<p class="msg">${messageHtml(msg.message)}${msg.aiPending ? TYPING : ''}</p>` +
       `<div class="stats">` +
       `<div class="stat slack"><span>Slacking today</span><b>${escapeHtml(duration(msg.today?.slack))}</b></div>` +
       `<div class="stat work"><span>Working today</span><b>${escapeHtml(duration(msg.today?.work))}</b></div>` +
       `</div>` +
       `<button class="btn primary" data-act="back">Take me back to ${escapeHtml(msg.task)}</button>` +
-      (msg.exercise ? `<button class="btn good" data-act="exercise" data-gated ${gated} data-label="I did ${escapeHtml(msg.exercise)}"></button>` : '') +
-      `<button class="btn" data-act="snooze" data-gated ${gated} data-label="Beg for ${escapeHtml(msg.snoozeMin)} more minutes"></button>` +
+      (msg.exercise && !msg.zeroSlack ? `<button class="btn good" data-act="exercise" data-gated ${gated} data-label="I did ${escapeHtml(msg.exercise)}"></button>` : '') +
+      (msg.zeroSlack ? '' : `<button class="btn" data-act="snooze" data-gated ${gated} data-label="Beg for ${escapeHtml(msg.snoozeMin)} more minutes"></button>`) +
       (msg.sensitive ? '' : `<button class="link" data-act="isWork" data-gated ${gated}>This page is actually for my task</button>`) +
+      `<div class="reply-area">${replyFormHtml(msg, 'block')}</div>` +
       `</div>`;
+    blockRefused = null;
     ui.block.hidden = false;
     render();
     const until = Date.now() + begDelay * 1000;
@@ -1029,7 +1281,9 @@ button { font: inherit; }
       nag = null;
       hideBlock();
       setPanel(false);
-      toast('Good choice. Hackie approves.');
+      lockdownHoldUntil = Date.now() + 5000; // don't flash the lockdown back while the tab switches
+      const min = status?.calmAfterMin ?? 2;
+      toast(`Good. ${min} min of real work and Hackie calms down. Come straight back and he'll know.`, 5000);
       send({ type: 'pomo:action', action });
       return;
     }
@@ -1093,6 +1347,7 @@ button { font: inherit; }
         msgEl.textContent = text;
         msgEl.classList.add('ai-line');
       }
+      blockRefused = action;
       const target = ui.block.querySelector(`[data-act="${action === 'beg' ? 'snooze' : action}"]`);
       if (target) {
         target.disabled = true;
@@ -1137,8 +1392,17 @@ button { font: inherit; }
 
   // --- messages from the service worker ----------------------------------------
 
+  let lockdownHoldUntil = 0;
+
   function handleStatus(s) {
     status = s && s.category && s.category !== 'inactive' ? { ...s, receivedAt: Date.now() } : null;
+    // An open lockdown comes back on every slacking page: navigating away and back doesn't escape it.
+    if (status?.lockdown && artReady && onSlack() && (!ui.block || ui.block.hidden) && Date.now() > lockdownHoldUntil) {
+      lastFire = status.lockdown;
+      showBlock(status.lockdown);
+      if (status.lockdown.effects?.sound) playCrack();
+      if (status.lockdown.effects?.shake) setTimeout(() => shake(1), 250);
+    }
     if (!onSlack()) {
       if (nag && !nag.test) nag = null; // test nudges stay until answered
       hideBlock();
@@ -1190,42 +1454,44 @@ button { font: inherit; }
 .dbg {
   position: fixed; left: 14px; bottom: 14px; z-index: 2147483646; width: min(360px, calc(100vw - 28px));
   max-height: min(70vh, 560px); display: flex; flex-direction: column;
-  font: 12px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  color: #f4ede7; background: rgba(28, 22, 21, .96); border: 1px solid rgba(255,255,255,.12);
-  border-radius: 14px; box-shadow: 0 16px 40px rgba(0,0,0,.45); overflow: hidden;
+  font-family: ${FONT_STACK}; font-weight: 800; font-size: 12px; line-height: 1.45; -webkit-font-smoothing: antialiased;
+  color: #fff; background: #247287; border: 0; border-radius: 12px; box-shadow: none; overflow: hidden;
 }
-header { display: flex; align-items: center; gap: 8px; padding: 7px 8px 7px 10px; border-bottom: 1px solid rgba(255,255,255,.1); }
+header { display: flex; align-items: center; gap: 8px; padding: 7px 8px 7px 10px; background: rgba(0,0,0,.12); }
 header .mini { width: 20px; height: 20px; flex: none; }
 header .mini svg { width: 100%; height: 100%; overflow: visible; }
-header .title { font-weight: 750; flex: 1; }
-header .ver { color: #a89e96; font-size: 11px; }
+header .title { font-size: 13px; flex: 1; }
+header .ver { color: rgba(255,255,255,.72); font-size: 11px; }
 button { font: inherit; cursor: pointer; }
-.min { appearance: none; border: 0; background: rgba(255,255,255,.08); color: inherit; width: 24px; height: 22px; border-radius: 6px; }
-.min:hover { background: rgba(255,255,255,.16); }
+.min { appearance: none; border: 0; background: rgba(255,255,255,.2); color: #fff; width: 24px; height: 22px; border-radius: 6px; }
+.min:hover { background: rgba(255,255,255,.35); }
+.min:focus-visible, form button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 .body { overflow: auto; padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 8px; }
 .collapsed .body { display: none; }
-.collapsed header { border-bottom: 0; }
+.collapsed header { background: none; }
 .state { display: flex; gap: 8px; align-items: flex-start; }
-.badge { flex: none; font-size: 10.5px; font-weight: 800; letter-spacing: .05em; padding: 2px 7px; border-radius: 99px; }
-.badge.on { background: #1f6e43; color: #d7ffe6; }
-.badge.off { background: #7a2a26; color: #ffe1de; }
-.why { color: #e9e1da; }
+.badge { flex: none; font-size: 10.5px; letter-spacing: .05em; padding: 2px 7px; border-radius: 99px; color: #fff; }
+.badge.on { background: #2f9e57; }
+.badge.off { background: #c4271e; }
+.why { color: #fff; }
 dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 0; }
-dt { color: #a89e96; }
+dt { color: rgba(255,255,255,.72); }
 dd { margin: 0; overflow-wrap: anywhere; }
-.yes { color: #7ee2a8; } .no { color: #ff9a92; }
-ol { list-style: none; margin: 0; padding: 6px 8px; border-radius: 8px; background: rgba(255,255,255,.05);
-  font: 11px/1.5 ui-monospace, "Cascadia Code", Consolas, monospace; max-height: 120px; overflow: auto; color: #d6cdc5; }
+.yes { color: #aef2cb; } .no { color: #ffc2b8; }
+ol { list-style: none; margin: 0; padding: 6px 8px; border-radius: 6px; background: rgba(0,0,0,.14);
+  font: 600 11px/1.5 ui-monospace, "Cascadia Code", Consolas, monospace; max-height: 120px; overflow: auto; color: rgba(255,255,255,.9); }
 form { display: flex; gap: 6px; }
-input { flex: 1; min-width: 0; font: inherit; color: inherit; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14);
-  border-radius: 8px; padding: 6px 8px; }
-input:focus { outline: 2px solid #e5484d; outline-offset: 0; }
-form button { appearance: none; border: 0; background: #e5484d; color: #fff; font-weight: 700; border-radius: 8px; padding: 0 12px; }
+input { flex: 1; min-width: 0; font: inherit; color: #fff; background: rgba(255,255,255,.2); border: 0;
+  border-radius: 6px; padding: 6px 8px; }
+input::placeholder { color: rgba(255,255,255,.7); opacity: 1; }
+input:focus { outline: 2px solid #fff; outline-offset: 0; }
+form button { appearance: none; border: 0; background: #fff; color: #247287; border-radius: 6px; padding: 0 12px; }
+form button:hover { background: rgba(255,255,255,.86); }
 form button:disabled { opacity: .5; cursor: progress; }
-.answer { white-space: pre-wrap; background: rgba(255,255,255,.05); border-radius: 8px; padding: 7px 9px; }
+.answer { white-space: pre-wrap; background: rgba(255,255,255,.12); border-radius: 6px; padding: 7px 9px; }
 .answer:empty { display: none; }
-.answer .meta { display: block; margin-top: 4px; color: #a89e96; font-size: 11px; }
-.answer.err { color: #ffb4ad; }
+.answer .meta { display: block; margin-top: 4px; color: rgba(255,255,255,.72); font-size: 11px; }
+.answer.err { color: #fff; background: rgba(0,0,0,.18); }
 `;
 
   const dbg = { host: null, root: null, el: null, collapsed: false, busy: false };

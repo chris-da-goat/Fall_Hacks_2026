@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hackie settings</title>
+    <link rel="stylesheet" href="../shared/theme.css" />
+    <link rel="stylesheet" href="options.css" />
+    <script src="../shared/mascot.js"></script>
+    <script type="module" src="options.js"></script>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="hero">
+        <button class="hero-hackie" id="heroHackie" title="Poke Hackie" aria-label="Poke Hackie"></button>
+        <div class="hero-text eared">
+          <h1>Meet Hackie, your robot drill sergeant</h1>
+          <p>
+            Tell Hackie what you're supposed to be doing. Hackie keeps track of where your time actually goes, and gets
+            steadily less polite when you drift onto YouTube, Instagram and friends.
+          </p>
+        </div>
+      </header>
+
+      <div class="savebar" id="savebar" aria-live="polite"></div>
+
+      <section class="card section" id="task">
+        <h2>Your legitimate task</h2>
+        <p class="hint">This is what Hackie whips you back to. Be specific. It helps Hackie tell a useful tutorial from a distraction.</p>
+        <label class="field">
+          <span>What are you working on?</span>
+          <input id="taskTitle" type="text" placeholder="e.g. my CMPT 225 linked list assignment" autocomplete="off" />
+          <small>Hackie drops this into sentences ("Back to …", "… is waiting"), so a noun phrase reads best.</small>
+        </label>
+        <label class="field">
+          <span>Task keywords <em>comma separated</em></span>
+          <input id="taskKeywords" type="text" placeholder="linked list, c++, pointers, data structures" autocomplete="off" />
+          <small>Pages that mention these count as work, even on a slacking site like YouTube.</small>
+        </label>
+        <label class="field">
+          <span>"Back to work" link <em>optional</em></span>
+          <input id="taskUrl" type="text" placeholder="https://github.com/you/your-project" autocomplete="off" />
+          <small>Where "Back to work" sends you when you don't have a work tab open.</small>
+        </label>
+      </section>
+
+      <section class="card section" id="sites">
+        <h2>What counts as what</h2>
+        <p class="hint">One site per line. Subdomains are included automatically. Add a path to be more specific, e.g. <code>youtube.com/shorts</code>.</p>
+        <div class="two">
+          <label class="field">
+            <span><i class="dot work"></i>Work sites</span>
+            <textarea id="workSites" rows="10" spellcheck="false"></textarea>
+          </label>
+          <label class="field">
+            <span><i class="dot slack"></i>Slacking sites</span>
+            <textarea id="slackSites" rows="10" spellcheck="false"></textarea>
+          </label>
+        </div>
+        <label class="field">
+          <span>Slacking keywords</span>
+          <textarea id="slackKeywords" rows="3" spellcheck="false"></textarea>
+          <small>Comma or line separated. A page whose title contains one of these counts as slacking on any site, unless it matches your task better.</small>
+        </label>
+      </section>
+
+      <section class="card section" id="strictness">
+        <h2>How strict is Hackie?</h2>
+        <p class="hint">Hackie times your continuous "slack streak". Spend a couple of minutes on work and the streak resets.</p>
+        <div class="presets" role="radiogroup" aria-label="Strictness preset">
+          <button class="preset" role="radio" data-preset="gentle">
+            <span class="preset-hackie" data-mood="worried"></span>
+            <b>Gentle</b>
+            <span>A polite nudge after 10 minutes. No whip, no blocking.</span>
+          </button>
+          <button class="preset" role="radio" data-preset="normal">
+            <span class="preset-hackie" data-mood="angry"></span>
+            <b>Normal</b>
+            <span>Nudge at 5 min, whip at 10, lockdown at 20.</span>
+          </button>
+          <button class="preset" role="radio" data-preset="drill">
+            <span class="preset-hackie" data-mood="furious"></span>
+            <b>Drill sergeant</b>
+            <span>Nudge at 2, whip at 4, lockdown at 8. Repeats every minute.</span>
+          </button>
+        </div>
+        <div class="thresholds">
+          <label class="field num-field"><span>Nudge after</span><div class="suffix"><input type="number" min="0" step="0.5" data-t="nudgeAfterMin" /><em>min</em></div></label>
+          <label class="field num-field"><span>Whip after</span><div class="suffix"><input type="number" min="0" step="0.5" data-t="whipAfterMin" /><em>min</em></div></label>
+          <label class="field num-field"><span>Lockdown after</span><div class="suffix"><input type="number" min="0" step="0.5" data-t="blockAfterMin" /><em>min</em></div></label>
+          <label class="field num-field"><span>Repeat warnings every</span><div class="suffix"><input type="number" min="0.5" step="0.5" data-t="repeatEveryMin" /><em>min</em></div></label>
+          <label class="field num-field"><span title="Each snooze in a row is shorter: 5, then 3, then 2 minutes with the default.">First snooze (then shorter)</span><div class="suffix"><input type="number" min="1" step="1" data-t="snoozeMin" /><em>min</em></div></label>
+          <label class="field num-field"><span>Streak resets after work for</span><div class="suffix"><input type="number" min="0.5" step="0.5" data-t="streakResetMin" /><em>min</em></div></label>
+          <label class="field num-field"><span>Daily slack budget</span><div class="suffix"><input type="number" min="0" step="5" data-t="dailySlackBudgetMin" /><em>min</em></div></label>
+        </div>
+        <small class="foot-hint">Set any step to 0 to turn it off. Once you blow through your daily slack budget, every warning escalates one level.</small>
+        <label class="toggle zero-slack"><input type="checkbox" id="zeroSlack" /><span class="switch"></span><span class="t-text"><b>Zero-slack mode</b><small>Every page judged as slacking locks down the moment it opens, and your task page opens next to it. No snoozing or begging. If Hackie got a page wrong, argue with him in the lockdown's reply box.</small></span></label>
+      </section>
+
+      <section class="card section" id="effects">
+        <h2>Effects</h2>
+        <div class="toggles">
+          <label class="toggle"><input type="checkbox" data-e="sound" /><span class="switch"></span><span class="t-text"><b>Whip-crack sound</b><small>A synthesized crack on whips, an "ahem" on nudges.</small></span></label>
+          <label class="toggle"><input type="checkbox" data-e="shake" /><span class="switch"></span><span class="t-text"><b>Screen shake</b><small>The page jolts when the whip lands.</small></span></label>
+          <label class="toggle"><input type="checkbox" data-e="pauseVideo" /><span class="switch"></span><span class="t-text"><b>Pause videos</b><small>Whips and lockdowns pause whatever is playing.</small></span></label>
+          <label class="toggle"><input type="checkbox" data-e="timerChip" /><span class="switch"></span><span class="t-text"><b>Slack timer chip</b><small>A live counter in the corner of slacking sites.</small></span></label>
+          <label class="toggle"><input type="checkbox" data-e="blockScreen" /><span class="switch"></span><span class="t-text"><b>Lockdown</b><small>A full-screen block you have to wait out (or go back to work).</small></span></label>
+        </div>
+      </section>
+
+      <section class="card section" id="ai">
+        <h2>AI judge and Ask Hackie <span class="badge">optional</span></h2>
+        <div class="hint ai-intro">
+          <p>Bring your own API key from any provider. The same provider and key power three things:</p>
+          <ul>
+            <li>
+              <b>The page judge.</b> Site lists can't tell a lecture from a cat video. With the toggle below on, Hackie
+              sends ambiguous pages (URL, title, description and a short text excerpt) to the model, which decides
+              whether the page helps with your task and writes a personalized nudge.
+            </li>
+            <li>
+              <b>Ask Hackie.</b> A chat agent in the popup's Ask tab and the debug console. It uses tools to read your
+              tracking data (current activity, today, history, settings, debug log) and can mark a site or start a
+              break when you ask. It works whenever a key is set, even with the judge toggle off.
+            </li>
+            <li>
+              <b>Hackie's AI on every nudge.</b> Speech bubbles written for you, plus opening your work tabs or
+              closing slacking ones when you need it. Its switches are at the bottom of this section.
+            </li>
+          </ul>
+        </div>
+        <label class="toggle"><input type="checkbox" id="aiEnabled" /><span class="switch"></span><span class="t-text"><b>Let an AI judge ambiguous pages</b><small>Only controls automatic judging. Pages on your work list are never sent.</small></span></label>
+        <div class="ai-fields" id="aiFields">
+          <div class="two">
+            <label class="field"><span>Provider</span><select id="aiProvider"></select></label>
+            <label class="field">
+              <span>Model</span>
+              <div class="key-row">
+                <input id="aiModel" type="text" list="aiModelList" autocomplete="off" spellcheck="false" />
+                <button class="btn" id="aiModelLoad" type="button">Load models</button>
+              </div>
+              <datalist id="aiModelList"></datalist>
+              <small class="model-status" id="aiModelStatus" aria-live="polite" hidden></small>
+            </label>
+          </div>
+          <label class="field" id="aiBaseRow">
+            <span>API base URL <em>OpenAI-compatible, ends before /chat/completions</em></span>
+            <input id="aiBaseUrl" type="text" placeholder="http://localhost:11434/v1" autocomplete="off" spellcheck="false" />
+            <small>Works with Groq, Together, Mistral, Ollama, LM Studio and anything else that speaks the OpenAI Chat Completions API.</small>
+          </label>
+          <label class="field">
+            <span id="aiKeyLabel">API key</span>
+            <div class="key-row">
+              <input id="aiKey" type="password" autocomplete="off" spellcheck="false" />
+              <button class="btn" id="aiKeyShow" type="button">Show</button>
+            </div>
+            <small><span id="aiKeyNote"></span> <a id="aiKeysLink" target="_blank" rel="noopener">Get a key</a></small>
+          </label>
+          <label class="field num-field ai-max"><span>Max AI calls per hour</span><div class="suffix"><input id="aiMax" type="number" min="1" step="1" /><em>calls</em></div></label>
+          <div class="ai-test">
+            <button class="btn" id="aiTest" type="button">Test with a sample page</button>
+            <div class="ai-result" id="aiResult" aria-live="polite"></div>
+          </div>
+        </div>
+        <div class="sub-block" id="aiEvents">
+          <h3>Hackie's AI on every nudge</h3>
+          <div class="toggles">
+            <label class="toggle"><input type="checkbox" id="aiEventMessages" /><span class="switch"></span><span class="t-text"><b>AI-written speech bubbles</b><small>On every nudge, whip and lockdown, the AI reads the page and Hackie's memory and writes a message aimed at you. Sensitive pages are never described.</small></span></label>
+            <label class="toggle"><input type="checkbox" id="aiOpenTabs" /><span class="switch"></span><span class="t-text"><b>Let Hackie open and focus your work tabs</b><small>"Back to work" lets the AI pick where to send you from your task link, projects and work pages.</small></span></label>
+            <label class="toggle"><input type="checkbox" id="aiCloseTabs" /><span class="switch"></span><span class="t-text"><b>Let Hackie close slacking tabs when you keep begging</b><small>Only tabs classified as slacking, never pinned ones. You can restore them from the popup.</small></span></label>
+            <label class="field num-field sub-field"><span>…after this many begs during lockdowns</span><div class="suffix"><input id="aiCloseAfterBegs" type="number" min="1" step="1" /><em>begs</em></div></label>
+            <label class="toggle"><input type="checkbox" id="aiOverride" /><span class="switch"></span><span class="t-text"><b>Let Hackie refuse your clicks when he's angry</b><small>Snoozes, begging, breaks, pausing, Reset mood, dismissing him and "It's for my task" can be refused. Angry: the AI decides by reading the page and your history. Furious: refused outright.</small></span></label>
+            <label class="field sub-field inline-num"><span>Lock Restore for</span><input id="aiRestoreLock" type="number" min="0" step="1" inputmode="numeric" /><span>min after Hackie closes tabs</span></label>
+          </div>
+          <small class="foot-hint">The AI bubbles, tab actions and the angry AI verdicts need a provider key above; without one, furious refusals and the restore lock still apply. Page snapshots and memory summaries are sent to the chosen provider.</small>
+        </div>
+      </section>
+
+      <section class="card section" id="memory">
+        <h2>Hackie's memory</h2>
+        <p class="hint">
+          Hackie remembers where your slacking time goes, the work pages you actually use, your projects and what the
+          AI learned about you, so it can warn you sooner and send you somewhere useful. It's stored only in this
+          browser. Sensitive sites only ever appear as "Private site".
+        </p>
+        <div class="toggles">
+          <label class="toggle"><input type="checkbox" id="memoryEnabled" /><span class="switch"></span><span class="t-text"><b>Remember my habits, work pages and projects</b><small>Also logs lockdowns, begging and tabs Hackie closed or opened.</small></span></label>
+          <label class="toggle"><input type="checkbox" id="memoryHabit" /><span class="switch"></span><span class="t-text"><b>Warn sooner on sites that are a slacking habit</b><small>After 30 minutes of slacking on a site, warnings come at 60% of the usual time; after 2 hours, at 40%. Flag a site to count it as a habit right away.</small></span></label>
+        </div>
+        <p class="mem-status" id="memStatus" role="status" hidden></p>
+        <div class="mem" id="memLists" data-nosave>
+          <div class="mem-block mem-wide">
+            <h3>Slacking habits</h3>
+            <ul class="mem-list" id="memSites"></ul>
+          </div>
+          <div class="mem-block mem-wide">
+            <h3>Work pages</h3>
+            <ul class="mem-list" id="memWorkPages"></ul>
+            <button class="btn mini" id="memWorkMore" type="button" hidden></button>
+          </div>
+          <div class="mem-block">
+            <h3>Projects</h3>
+            <ul class="mem-list" id="memProjects"></ul>
+            <form class="mem-add" id="memProjectForm" autocomplete="off">
+              <input id="memProjectName" type="text" maxlength="80" placeholder="Project name" aria-label="Project name" />
+              <textarea id="memProjectUrls" rows="2" spellcheck="false" placeholder="Links, one per line" aria-label="Project links, one per line"></textarea>
+              <textarea id="memProjectNotes" rows="2" maxlength="300" placeholder="Notes (optional)" aria-label="Project notes"></textarea>
+              <button class="btn" id="memProjectAdd" type="submit">Add project</button>
+            </form>
+          </div>
+          <div class="mem-block">
+            <h3>Facts Hackie learned</h3>
+            <ul class="mem-list" id="memFacts"></ul>
+            <form class="mem-add mem-add-row" id="memFactForm" autocomplete="off">
+              <input id="memFactText" type="text" maxlength="240" placeholder="e.g. I focus best before noon" aria-label="A fact for Hackie to remember" />
+              <button class="btn" id="memFactAdd" type="submit">Add</button>
+            </form>
+          </div>
+          <div class="mem-block mem-wide">
+            <h3>Recent incidents</h3>
+            <ul class="mem-list mem-incidents" id="memIncidents"></ul>
+          </div>
+        </div>
+        <div class="row"><button class="btn danger" id="memForgetAll" type="button">Forget everything</button></div>
+      </section>
+
+      <section class="card section" id="sensitive">
+        <h2>Sensitive sites <span class="badge" id="sensitiveCount"></span></h2>
+        <p class="hint">
+          Pages on these sites, or web proxies to them, are never described to the AI. The page judge is only told
+          "information blocked: the user is viewing sensitive content", and Ask Hackie only ever sees them as "Private site".
+          Time here counts as slacking and is logged as "Private site", never by name. The default list is the
+          <a href="https://github.com/wpzzz/blocked-sites-in-south-korea" target="_blank" rel="noopener">South Korea blocked-sites list</a>;
+          add, remove or edit entries however you like.
+        </p>
+        <label class="field">
+          <span>One domain per line</span>
+          <textarea id="sensitiveSites" rows="8" spellcheck="false"></textarea>
+        </label>
+        <div class="row"><button class="btn" id="sensitiveReset" type="button">Restore the default list</button></div>
+      </section>
+
+      <section class="card section" id="debug">
+        <h2>Debug mode</h2>
+        <p class="hint">
+          Adds a small console in the bottom-left corner of every site showing what Hackie sees right now: whether
+          Chrome's window is focused, whether you're idle, whether media is playing, how the page is classified and
+          why, the slack streak, and recent decisions. It also has an Ask Hackie box, so you (or a browser agent such as
+          Claude in Chrome) can ask why Hackie did or didn't react. Websites can't read the console, but it's on screen,
+          so turn it off before screen sharing.
+        </p>
+        <label class="toggle"><input type="checkbox" id="debugEnabled" /><span class="switch"></span><span class="t-text"><b>Show the Hackie debug console on every page</b><small>Live tracking decisions plus an Ask Hackie box.</small></span></label>
+        <label class="toggle"><input type="checkbox" id="debugIgnoreFocus" /><span class="switch"></span><span class="t-text"><b>Testing: count time even when Chrome isn't focused</b><small>Also ignores idleness. Lets a browser agent test Hackie while you're in another app. Only works with debug mode on; turn it off when you're done.</small></span></label>
+      </section>
+
+      <section class="card section" id="data">
+        <h2>Your data</h2>
+        <p class="hint">Time stats (the last 60 days) and Hackie's memory stay in this browser. Nothing is uploaded unless you set up an AI provider above.</p>
+        <div class="row">
+          <button class="btn" id="exportBtn" type="button">Export as JSON</button>
+          <button class="btn danger" id="resetBtn" type="button">Reset all stats</button>
+        </div>
+      </section>
+
+      <section class="card section" id="settingsFile">
+        <h2>Settings file</h2>
+        <p class="hint">Move your settings to another browser, or keep a backup. Only settings, no stats or memory.</p>
+        <div class="row file-row" data-nosave>
+          <button class="btn" id="settingsExport" type="button">Export settings as JSON</button>
+          <label class="check" title="Only share this file with yourself."><input type="checkbox" id="settingsExportKeys" />Include API keys</label>
+          <button class="btn" id="settingsImport" type="button">Import settings from JSON</button>
+          <input id="settingsImportFile" type="file" accept="application/json,.json" hidden />
+        </div>
+        <p class="file-msg" id="settingsFileMsg" role="status" hidden></p>
+      </section>
+    </div>
+  </body>
+</html>
