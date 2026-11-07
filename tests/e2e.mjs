@@ -286,6 +286,12 @@ async function main() {
     const { targetId: pageId } = await cdp.send('Target.createTarget', { url: `${base}/cats` });
     const { sessionId: pg } = await cdp.send('Target.attachToTarget', { targetId: pageId, flatten: true });
     await cdp.send('Page.enable', {}, pg);
+    // Pages must never load extension files (YouTube logs them as "Unsafe attempt to load URL").
+    const extLoadLogs = [];
+    cdp.listeners.add((m) => {
+      if (m.method === 'Log.entryAdded' && /chrome-extension:\/\/|Unsafe attempt to load/.test(m.params.entry.text)) extLoadLogs.push(m.params.entry.text.trim());
+    });
+    await cdp.send('Log.enable', {}, pg);
     const inPage = (expr) => evalIn(pg, expr);
     const shot = async (name, sessionId = pg, params = {}) => {
       const { data } = await cdp.send('Page.captureScreenshot', { format: 'png', ...params }, sessionId);
@@ -313,6 +319,25 @@ async function main() {
     check('Hackie walks in with the slack timer', chip && /videos\.localhost\s*0:0\d/.test(chip.text), chip?.text);
     const walker = await inPage(`(() => { const w = document.querySelector('taskwhip-hackie').shadowRoot.querySelector('.walker'); const img = w.querySelector('.hk-box img'); return { hidden: w.hidden, transform: w.style.transform, gif: img && img.complete && img.naturalWidth }; })()`);
     check('Hackie (the team GIF) is drawn and positioned', walker && !walker.hidden && /translate/.test(walker.transform) && walker.gif === 64, JSON.stringify(walker));
+    const srcs = await inPage(`[...document.querySelector('taskwhip-hackie').shadowRoot.querySelectorAll('img')].map((i) => i.src.slice(0, 11))`);
+    check("Hackie's art arrives as data: URLs (the page never loads extension files)", srcs.length > 0 && srcs.every((x) => x === 'data:image/'), srcs.join(','));
+    const war = await bg('chrome.runtime.getManifest().web_accessible_resources || null');
+    check('no web-accessible files for sites to load or probe', war === null, JSON.stringify(war));
+    const at = await inPage(`(() => { const m = document.querySelector('taskwhip-hackie').shadowRoot.querySelector('.walker').style.transform.match(/translate\\(([-\\d.]+)px, ([-\\d.]+)px\\)/); return m ? [Number(m[1]), Number(m[2])] : null; })()`);
+    let eyes = null;
+    if (at) {
+      for (let i = 0; i < 6 && !(eyes && eyes.left && eyes.left !== 'translate(0%, 0%)'); i++) {
+        const cur = await inPage(`(() => { const m = document.querySelector('taskwhip-hackie').shadowRoot.querySelector('.walker').style.transform.match(/translate\\(([-\\d.]+)px, ([-\\d.]+)px\\)/); return [Number(m[1]), Number(m[2])]; })()`);
+        const x = cur[0] + 50 + (cur[0] > 640 ? -95 : 95);
+        await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y: cur[1] + 40 }, pg);
+        await sleep(400);
+        eyes = await inPage(`(() => { const r = document.querySelector('taskwhip-hackie').shadowRoot; const l = r.querySelector('.hk-box .hk-eye-l'); return l ? { left: l.style.transform, right: r.querySelector('.hk-box .hk-eye-r').style.transform } : null; })()`);
+      }
+    }
+    check("hover: curious Hackie (the team's hover sprite) looks at the mouse", eyes && eyes.left && eyes.left !== 'translate(0%, 0%)', JSON.stringify(eyes));
+    await shot('1b-curious');
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 640, y: 400 }, pg);
+    await sleep(300);
 
     const waitFor = async (sel, pred, timeoutMs) => {
       const until = Date.now() + timeoutMs;
@@ -405,6 +430,8 @@ async function main() {
     await sleep(700);
     const testWhip = await ui('.bubble');
     check('test trigger fires a whip on demand', testWhip && /lvl-2/.test(testWhip.cls), testWhip?.cls);
+    const angryArt = await inPage(`(() => { const box = document.querySelector('taskwhip-hackie').shadowRoot.querySelector('.hk-box'); const f = [...box.querySelectorAll('.hk-af')]; return { mood: box.querySelector('.hk')?.className, frames: f.length, showing: f.filter((i) => getComputedStyle(i).opacity === '1').length }; })()`);
+    check("angry Hackie flips through the team's 6 angry pictures", /hk-(angry|furious)/.test(angryArt.mood) ? angryArt.frames === 6 && angryArt.showing === 1 : false, JSON.stringify(angryArt));
     await clickUi('[data-act="dismiss"]');
 
     // AI judge, via the "custom OpenAI-compatible" provider pointed at the fake LLM.
@@ -469,6 +496,9 @@ async function main() {
     check('agent: answer uses the tool results', /Slacked \d+s today/.test(asked?.answer || '') && /Tracking/.test(asked?.answer || ''), asked?.answer);
     const lastAgentReq = aiRequests.filter((r) => Array.isArray(r.body.tools) && r.body.tools.some((t) => t.function?.name === 'get_today_summary')).pop();
     check('agent: tool results went back to the model', lastAgentReq?.body.messages.filter((m) => m.role === 'tool').length === 2);
+    const agentSystem = lastAgentReq?.body.messages.find((m) => m.role === 'system')?.content || '';
+    check("Ask Hackie gets all of Hackie's memory", /<memory>[\s\S]*videos\.localhost[\s\S]*<\/memory>/.test(agentSystem), (agentSystem.match(/<memory>[\s\S]{0,140}/) || [''])[0]);
+    check('Ask Hackie knows his mood, which sets his tone', /mood right now is (CALM|ANNOYED|ANGRY|FURIOUS)/.test(agentSystem) && /<mood>[\s\S]*"snoozesInARow"[\s\S]*<\/mood>/.test(agentSystem) && /Let the mood set your tone/.test(agentSystem), (agentSystem.match(/mood right now is \w+/) || [''])[0]);
     const chat = await bg(`chrome.storage.session.get('agentChat').then(({ agentChat }) => agentChat.length)`);
     check('agent: conversation saved for the popup', chat === 2, `${chat} messages`);
 
@@ -645,6 +675,7 @@ async function main() {
     const reportKpis = await evalIn(pop, `document.getElementById('kpis').textContent`);
     check('report page renders', /Working/.test(reportKpis), reportKpis.slice(0, 80));
 
+    check('pages never logged extension-file loads ("Unsafe attempt to load URL")', extLoadLogs.length === 0, extLoadLogs.slice(0, 2).join(' | '));
     const errors = await bg('self.__errors || []');
     if (errors.length) console.log('      SW errors:', errors);
   } catch (err) {

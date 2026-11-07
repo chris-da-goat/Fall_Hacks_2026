@@ -9,6 +9,7 @@
 // Volatile state lives in chrome.storage.session (the worker can be killed at any time);
 // settings, overrides, stats and the AI cache live in chrome.storage.local.
 
+import './shared/mascot.js'; // globalThis.Hackie.ART_FILES: the list of Hackie's art in assets/
 import { mergeSettings, aiConfig, aiReady, aiConfigured } from './lib/defaults.js';
 import { classifyPage, pageKey, parseRule, PRIVATE_KEY } from './lib/classify.js';
 import { findSensitive, PRIVATE_DOMAIN } from './lib/sensitive.js';
@@ -29,7 +30,7 @@ import {
   forget as forgetMemory,
   topWorkPages,
   workTargets,
-  memoryForPrompt,
+  memoryForPrompt, memoryForAgent,
 } from './lib/memory.js';
 import { buildEnforcerSystem, buildEnforcerMessage, createEnforcerTools, cleanBubble, LIMITS as ENFORCER_LIMITS } from './lib/enforcer.js';
 import { angerLevel, policyVerdict, denialLine, OVERRIDABLE } from './lib/anger.js';
@@ -985,6 +986,31 @@ const agentApi = {
 
 const AGENT_CHAT_MAX = 30;
 
+// Ask Hackie's view of the user: all of memory (when on) and his mood right now.
+async function agentContext(settings) {
+  const now = Date.now();
+  const [state, day] = await Promise.all([loadState(), loadDay()]);
+  const anger = computeAnger(state, settings, now);
+  const cur = state.current;
+  const lockUntil = await restoreLockedUntil(settings);
+  const mood = {
+    mood: anger.label,
+    why: anger.reasons,
+    onPage: cur ? { site: cur.sensitive ? 'Private site' : siteName(cur.domain), category: cur.category, habit: cur.habit?.level || 'none' } : null,
+    slackStreakMin: Math.round((state.streak?.slack || 0) / 60),
+    lastWarning: state.lastFire?.level ? LEVEL_NAME[state.lastFire.level] : null,
+    snoozesInARow: state.snoozeCount || 0,
+    lockdownBegs: state.lockdownBegs || 0,
+    todayMin: { work: Math.round(day.totals.work / 60), slack: Math.round(day.totals.slack / 60) },
+    refusedToday: day.events.denials || 0,
+    exercisesToday: day.events.exercises || 0,
+    onBreak: state.breakUntil > now,
+    ...(lockUntil ? { restoreLockedForMin: Math.ceil((lockUntil - now) / 60e3) } : {}),
+  };
+  const memory = settings.memory?.enabled ? memoryForAgent(await loadMemory(), { now }) : null;
+  return { memory, mood };
+}
+
 async function askHackie(question) {
   const settings = await loadSettings();
   if (!aiConfigured(settings)) {
@@ -995,7 +1021,7 @@ async function askHackie(question) {
   try {
     const result = await runAgent({
       config: aiConfig(settings),
-      system: buildAgentSystem({ task: settings.task }),
+      system: buildAgentSystem({ task: settings.task, ...(await agentContext(settings)) }),
       history: agentChat,
       question,
       tools: createAgentTools(agentApi),
@@ -1570,7 +1596,31 @@ async function judgeClick(action, tab) {
 // ---------------------------------------------------------------------------
 // Messages
 
+// Hackie's art for web pages, as data: URLs. Pages never load chrome-extension:// files themselves
+// (YouTube's service worker logs those as "Unsafe attempt to load URL"), and the extension doesn't
+// expose any web-accessible resources that sites could probe for.
+let artPromise = null;
+function loadArt() {
+  artPromise ||= Promise.all(
+    globalThis.Hackie.ART_FILES.map(async (path) => {
+      const res = await fetch(chrome.runtime.getURL(path));
+      if (!res.ok) throw new Error(`${path}: HTTP ${res.status}`);
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      let bin = '';
+      for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+      return [path, `data:${path.endsWith('.gif') ? 'image/gif' : 'image/png'};base64,${btoa(bin)}`];
+    }),
+  )
+    .then(Object.fromEntries)
+    .catch((err) => {
+      artPromise = null;
+      throw err;
+    });
+  return artPromise;
+}
+
 const HANDLERS = {
+  'hackie:art': () => loadArt(),
   'page:context': async (msg, sender) => {
     const tab = sender.tab;
     if (tab?.id == null) return { ok: false };
