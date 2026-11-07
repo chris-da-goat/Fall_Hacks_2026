@@ -54,6 +54,21 @@ There is now **one** extension: load it unpacked from `extension/` (see below). 
 
 No build step and no dependencies. Edit files, then click the reload icon on the extension card.
 
+### Getting a complete copy (and sharing one)
+
+Load the **whole** `extension/` folder from a full download. Use `git clone` or `git pull`, or GitHub's green **Code → Download ZIP** for the repo. Don't assemble it from a pull request's changed files: a copy missing even one imported file fails with *"Service worker registration failed. Status code: 3"* and *"An unknown error occurred when fetching the script"*.
+
+To check a copy before loading it, and to make a zip to share:
+
+```bash
+node tools/check-extension.mjs path/to/extension   # lists any missing or wrongly-cased files
+npm run zip                                          # dist/hackie-extension-<version>.zip, checked and verified
+```
+
+The zip unpacks to a `hackie/` folder; load that folder unpacked. On macOS, double-click the zip in Finder to unpack it.
+
+The repo root's `extension.zip` is a ready-made copy built this way (Hackie 0.2.0). After changing the extension, refresh it: run `npm run zip`, then copy `dist/hackie-extension-<version>.zip` over `extension.zip`.
+
 ## How it decides what's work
 
 In priority order:
