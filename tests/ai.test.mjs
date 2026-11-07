@@ -1,6 +1,6 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { judgePage, extractJson, AIError, parseRetryAfter, httpError } from '../extension/lib/ai.js';
+import { judgePage, extractJson, AIError, parseRetryAfter, httpError, buildUserMessage, SYSTEM_PROMPT, REDACTED_PAGE_NOTICE } from '../extension/lib/ai.js';
 import { aiConfig, aiReady, mergeSettings } from '../extension/lib/defaults.js';
 
 const task = { title: 'Finish the linked list assignment', keywords: ['c++'] };
@@ -136,4 +136,63 @@ test("httpError handles Gemini's array-wrapped quota error", async () => {
   assert.equal(err.status, 429);
   assert.equal(err.retryAfterMs, 43527000);
   assert.match(err.message, /^Google Gemini: Rate limited or out of credits\. Quota exceeded for metric: .*limit: 20/);
+});
+
+// Search result pages: the AI judges the query, never the search engine.
+const searchPage = { url: 'https://www.google.com/search?q=C%2B%2B++Linked+List+docs&sxsrf=abc', title: 'C++ linked list docs - Google Search' };
+
+test('buildUserMessage adds the search query line for search result pages', () => {
+  const msg = buildUserMessage(task, searchPage);
+  const lines = msg.split('\n');
+  const i = lines.indexOf('Search query: "c++ linked list docs" (a Google search results page: judge the query)');
+  assert.ok(i > 0, msg);
+  assert.ok(lines[i - 1].startsWith('URL: '), 'right after the URL');
+  assert.match(msg, /^Title: C\+\+ linked list docs - Google Search$/m);
+
+  assert.match(buildUserMessage(task, { url: 'https://duckduckgo.com/?q=funny+cats', title: 'x' }), /^Search query: "funny cats" \(a DuckDuckGo search results page: judge the query\)$/m);
+  assert.match(buildUserMessage(task, { url: 'https://www.youtube.com/results?search_query=cats', title: 'x' }), /^Search query: "cats" \(a YouTube search results page/m);
+});
+
+test('buildUserMessage has no search query line for other pages', () => {
+  for (const url of [
+    'https://www.youtube.com/watch?v=x',
+    'https://github.com/search?q=linked+list',
+    'https://www.google.com/maps?q=coffee',
+    'https://www.google.com/',
+    'https://www.google.com/search',
+    'https://docs.google.com/document/d/x',
+  ]) {
+    const msg = buildUserMessage(task, { url, title: 'Some page' });
+    assert.ok(!msg.includes('Search query'), url);
+    assert.ok(msg.includes(`URL: ${url}`), url);
+  }
+});
+
+test('SYSTEM_PROMPT tells the judge to judge what was searched for, not the engine', () => {
+  assert.match(SYSTEM_PROMPT, /search results page/);
+  assert.match(SYSTEM_PROMPT, /judge what the user searched for, never the search engine/);
+});
+
+test('the redacted message for a sensitive search page never includes the query', () => {
+  const secret = { ...searchPage, url: 'https://www.google.com/search?q=secret+diagnosis+xyz', title: 'secret diagnosis xyz - Google Search', redacted: true };
+  const msg = buildUserMessage(task, secret);
+  assert.ok(msg.includes(REDACTED_PAGE_NOTICE));
+  for (const leak of ['secret', 'diagnosis', 'Search query', 'google', 'URL:']) assert.ok(!msg.includes(leak), `leaked ${leak}`);
+});
+
+test('judgePage sends a sensitive search page as the notice only, with no query', async () => {
+  const calls = mockFetch(() => ({ json: { choices: [{ message: { content: '{"category":"slack","reason":"r","nudge":"Go."}' } }] } }));
+  const config = aiConfig(mergeSettings({ ai: { provider: 'deepseek', configs: { deepseek: { apiKey: 'k' } } } }));
+  await judgePage({ config, task, page: { url: 'https://www.google.com/search?q=secret+diagnosis+xyz', title: 'secret diagnosis xyz', sensitive: true } });
+  const sent = JSON.stringify(calls[0].body);
+  assert.ok(sent.includes('Page information blocked'));
+  for (const leak of ['secret', 'diagnosis', 'Search query', 'google.com/search']) assert.ok(!sent.includes(leak), `leaked ${leak}`);
+});
+
+test('judgePage sends the search query line for a normal search page', async () => {
+  const calls = mockFetch(() => ({ json: { choices: [{ message: { content: '{"category":"work","reason":"Docs.","nudge":""}' } }] } }));
+  const config = aiConfig(mergeSettings({ ai: { provider: 'deepseek', configs: { deepseek: { apiKey: 'k' } } } }));
+  await judgePage({ config, task, page: searchPage });
+  assert.match(calls[0].body.messages[1].content, /Search query: "c\+\+ linked list docs"/);
+  assert.match(calls[0].body.messages[0].content, /judge what the user searched for/);
 });

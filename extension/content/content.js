@@ -303,6 +303,15 @@ button { font: inherit; }
 .btn.denied { text-decoration: line-through; opacity: .55; cursor: not-allowed; }
 .deciding { display: block; margin: -4px 0 8px; font-size: 12.5px; font-weight: 650; color: var(--tomato-deep); }
 .bubble.refused { animation: shake .35s linear 2; }
+.reply { display: flex; gap: 6px; margin-top: 10px; }
+.reply input { flex: 1; min-width: 0; font: inherit; font-size: 13px; padding: 7px 10px; border-radius: 10px; border: 1px solid var(--line, rgba(127,127,127,.35)); background: var(--bg); color: var(--fg); }
+.reply input:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+.reply .btn { flex: none; }
+.block .reply .btn { width: auto; margin-top: 0; padding: 7px 14px; }
+.you { margin: 0 0 6px; font-size: 12.5px; color: var(--muted); font-style: italic; }
+.reply-note, .reply-error { margin: 8px 0 0; font-size: 12.5px; color: var(--muted); }
+.reply-error { color: var(--tomato-deep); }
+.reply + .deciding { margin: 6px 0 0; }
 
 @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
 @keyframes shake { 0%, 100% { transform: translateX(0) rotate(0); } 25% { transform: translateX(-2px) rotate(-3deg); } 75% { transform: translateX(2px) rotate(3deg); } }
@@ -403,8 +412,117 @@ button { font: inherit; }
     });
     pos = perimeterPoint(u);
     layer.addEventListener('click', onClick);
+    layer.addEventListener('submit', onReplySubmit);
+    for (const type of ['keydown', 'keyup', 'keypress']) {
+      layer.addEventListener(type, (e) => {
+        if (e.target?.closest?.('form.reply')) e.stopPropagation();
+      });
+    }
     ui.panel.addEventListener('input', onDemoInput);
     ui.panel.addEventListener('change', () => (demoDragging = false));
+  }
+
+  // ---- replying to Hackie (the AI judge may reconsider) --------------------------
+
+  let replying = false;
+  let blockRefused = null; // the click refused on the lockdown screen, if any
+  const canReply = (m) => Boolean(m?.canReply ?? status?.canReply);
+
+  function replyFormHtml(m, where) {
+    if (!canReply(m)) return '';
+    if (m.replyClosed) return `<p class="reply-note">${escapeHtml(m.replyClosed)}</p>`;
+    const pending = Boolean(m.replyPending);
+    return (
+      `<form class="reply" data-reply="${where}">` +
+      `<input name="say" type="text" maxlength="300" autocomplete="off" spellcheck="true" placeholder="Reply to Hackie…" aria-label="Reply to Hackie"${pending ? ' disabled' : ''}>` +
+      `<button class="btn" type="submit"${pending ? ' disabled' : ''}>Reply</button></form>` +
+      (pending ? `<span class="deciding" role="status">Hackie is reconsidering…${TYPING}</span>` : '') +
+      (m.replyError ? `<p class="reply-error" role="alert">${escapeHtml(m.replyError)}</p>` : '')
+    );
+  }
+
+  // Lockdown screen: swap its reply area in place.
+  function setBlockReply(state) {
+    const old = ui.block?.querySelector('.reply-area');
+    if (!old) return;
+    old.innerHTML = replyFormHtml({ canReply: true, ...state }, 'block');
+  }
+
+  async function onReplySubmit(e) {
+    const form = e.target?.closest?.('form.reply');
+    if (!form) return;
+    e.preventDefault();
+    const input = form.querySelector('input');
+    const text = (input?.value || '').trim();
+    if (!text || replying) return;
+    const where = form.dataset.reply;
+    const refused = where === 'nag' ? (nag?.refusedAt ? nag.denied?.[nag.denied.length - 1] : null) : blockRefused;
+    const said = where === 'nag' ? nag?.message : ui.block?.querySelector('.msg')?.textContent;
+    replying = true;
+    if (where === 'nag' && nag) {
+      nag = { ...nag, replyPending: true, replyError: '', youSaid: text };
+      sideKey = '';
+      render();
+    } else {
+      setBlockReply({ replyPending: true });
+    }
+    const res = await send({ type: 'appeal:send', text, kind: refused ? 'refusal' : 'warning', action: refused, said });
+    replying = false;
+    if (!res?.ok) {
+      const error = res?.error || "Hackie couldn't hear you. Try again.";
+      if (where === 'nag' && nag) {
+        nag = { ...nag, replyPending: false, replyError: error };
+        sideKey = '';
+        render();
+        const again = ui.side.querySelector('form.reply input');
+        if (again) again.value = text;
+      } else {
+        setBlockReply({ replyError: error });
+        const again = ui.block?.querySelector('form.reply input');
+        if (again) again.value = text;
+      }
+      return;
+    }
+    if (res.reconsidered) {
+      // Hackie changed his mind: the warning (or lockdown) goes away and he says so.
+      nag = null;
+      hideBlock();
+      setPanel(false);
+      showCheer(res.message);
+      return;
+    }
+    // Not convinced: Hackie answers in the same bubble (and the box is cleared for the next try).
+    if (where === 'nag' && nag) {
+      const sent = ui.side.querySelector('form.reply input');
+      if (sent) sent.value = '';
+      nag = {
+        ...nag,
+        message: res.message,
+        youSaid: text,
+        replyPending: false,
+        replyError: '',
+        replyClosed: res.final ? "Hackie has stopped listening to excuses about this page." : '',
+        aiDone: true,
+        aiPending: false,
+      };
+      sideKey = '';
+      render();
+    } else if (ui.block && !ui.block.hidden) {
+      const msgEl = ui.block.querySelector('.msg');
+      if (msgEl) {
+        msgEl.textContent = res.message;
+        msgEl.classList.add('ai-line');
+      }
+      let you = ui.block.querySelector('.you');
+      if (!you) {
+        you = document.createElement('p');
+        you.className = 'you';
+        msgEl?.before(you);
+      }
+      you.textContent = `You: "${text}"`;
+      setBlockReply({ replyClosed: res.final ? "Hackie has stopped listening to excuses about this page." : '' });
+      if (lastFire?.effects?.sound) playCrack();
+    }
   }
 
   function onClick(e) {
@@ -496,6 +614,17 @@ button { font: inherit; }
   }
 
   function renderSide(mode) {
+    // Keep whatever the user was typing to Hackie across re-renders.
+    const draftEl = ui.side.querySelector('form.reply input');
+    const draft = draftEl?.value || '';
+    const draftFocused = Boolean(draftEl && ui.root.activeElement === draftEl);
+    renderSideInner(mode);
+    const fresh = ui.side.querySelector('form.reply input');
+    if (fresh && draft && !fresh.value) fresh.value = draft;
+    if (fresh && draftFocused) fresh.focus({ preventScroll: true });
+  }
+
+  function renderSideInner(mode) {
     if (panelOpen) {
       ui.side.innerHTML = '';
       return;
@@ -512,6 +641,7 @@ button { font: inherit; }
       ui.side.innerHTML =
         `<div class="bubble lvl-${m.level}${angry ? ' angry' : ''}${m.refusedAt ? ' refused' : ' enter'}" role="alertdialog" aria-label="Hackie says">` +
         `<div class="tag">${escapeHtml(tag)}</div>` +
+        (m.youSaid ? `<p class="you">You: "${escapeHtml(m.youSaid)}"</p>` : '') +
         `<p class="msg${m.aiDone ? ' ai-line' : ''}">${messageHtml(m.message)}${m.aiPending && !m.aiDone ? TYPING : ''}</p>` +
         (m.deciding ? `<span class="deciding" role="status">Hackie is deciding…${TYPING}</span>` : '') +
         (m.exercise ? `<p class="exercise">Or get up and do <b>${escapeHtml(m.exercise)}</b>.</p>` : '') +
@@ -521,6 +651,7 @@ button { font: inherit; }
         btn('snooze', '', denied.has('snooze') || denied.has('beg') ? 'Snooze denied' : `${escapeHtml(m.snoozeMin)} more min`) +
         (m.sensitive ? '' : btn('isWork', 'ghost', denied.has('isWork') ? 'Override denied' : "It's for my task")) +
         `</div>` +
+        replyFormHtml(m, 'nag') +
         (denied.has('dismiss') || m.deciding ? '' : `<button class="x" data-act="dismiss" aria-label="Dismiss">×</button>`) +
         `</div>`;
     } else if (mode === 'cheer') {
@@ -765,18 +896,20 @@ button { font: inherit; }
     ui.block.innerHTML =
       `<div class="panel" role="alertdialog" aria-modal="true" aria-label="Hackie locked this page">` +
       `<div class="big">${Hackie.html({ mood: 'furious' })}</div>` +
-      `<div class="tag">${escapeHtml(msg.levelName)}</div>` +
-      `<h2>${escapeHtml(msg.minutesText)} on ${escapeHtml(msg.site)}.</h2>` +
+      `<div class="tag">${escapeHtml(msg.zeroSlack ? 'Zero-slack mode' : msg.levelName)}</div>` +
+      `<h2>${msg.zeroSlack ? `${escapeHtml(msg.site)} counts as slacking.` : `${escapeHtml(msg.minutesText)} on ${escapeHtml(msg.site)}.`}</h2>` +
       `<p class="msg">${messageHtml(msg.message)}${msg.aiPending ? TYPING : ''}</p>` +
       `<div class="stats">` +
       `<div class="stat slack"><span>Slacking today</span><b>${escapeHtml(duration(msg.today?.slack))}</b></div>` +
       `<div class="stat work"><span>Working today</span><b>${escapeHtml(duration(msg.today?.work))}</b></div>` +
       `</div>` +
       `<button class="btn primary" data-act="back">Take me back to ${escapeHtml(msg.task)}</button>` +
-      (msg.exercise ? `<button class="btn good" data-act="exercise" data-gated ${gated} data-label="I did ${escapeHtml(msg.exercise)}"></button>` : '') +
-      `<button class="btn" data-act="snooze" data-gated ${gated} data-label="Beg for ${escapeHtml(msg.snoozeMin)} more minutes"></button>` +
+      (msg.exercise && !msg.zeroSlack ? `<button class="btn good" data-act="exercise" data-gated ${gated} data-label="I did ${escapeHtml(msg.exercise)}"></button>` : '') +
+      (msg.zeroSlack ? '' : `<button class="btn" data-act="snooze" data-gated ${gated} data-label="Beg for ${escapeHtml(msg.snoozeMin)} more minutes"></button>`) +
       (msg.sensitive ? '' : `<button class="link" data-act="isWork" data-gated ${gated}>This page is actually for my task</button>`) +
+      `<div class="reply-area">${replyFormHtml(msg, 'block')}</div>` +
       `</div>`;
+    blockRefused = null;
     ui.block.hidden = false;
     render();
     const until = Date.now() + begDelay * 1000;
@@ -1029,7 +1162,9 @@ button { font: inherit; }
       nag = null;
       hideBlock();
       setPanel(false);
-      toast('Good choice. Hackie approves.');
+      lockdownHoldUntil = Date.now() + 5000; // don't flash the lockdown back while the tab switches
+      const min = status?.calmAfterMin ?? 2;
+      toast(`Good. ${min} min of real work and Hackie calms down. Come straight back and he'll know.`, 5000);
       send({ type: 'pomo:action', action });
       return;
     }
@@ -1093,6 +1228,7 @@ button { font: inherit; }
         msgEl.textContent = text;
         msgEl.classList.add('ai-line');
       }
+      blockRefused = action;
       const target = ui.block.querySelector(`[data-act="${action === 'beg' ? 'snooze' : action}"]`);
       if (target) {
         target.disabled = true;
@@ -1137,8 +1273,17 @@ button { font: inherit; }
 
   // --- messages from the service worker ----------------------------------------
 
+  let lockdownHoldUntil = 0;
+
   function handleStatus(s) {
     status = s && s.category && s.category !== 'inactive' ? { ...s, receivedAt: Date.now() } : null;
+    // An open lockdown comes back on every slacking page: navigating away and back doesn't escape it.
+    if (status?.lockdown && artReady && onSlack() && (!ui.block || ui.block.hidden) && Date.now() > lockdownHoldUntil) {
+      lastFire = status.lockdown;
+      showBlock(status.lockdown);
+      if (status.lockdown.effects?.sound) playCrack();
+      if (status.lockdown.effects?.shake) setTimeout(() => shake(1), 250);
+    }
     if (!onSlack()) {
       if (nag && !nag.test) nag = null; // test nudges stay until answered
       hideBlock();

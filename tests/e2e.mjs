@@ -153,6 +153,19 @@ function fakeLlm(req, res) {
       return reply({ content: JSON.stringify({ allow, message: allow ? 'Fine. ONE exercise break.' : `DENIED-BY-AI: no ${req.replace(/^The user asked for /, '').replace(/\.$/, '')}.` }) });
     }
 
+    // Replies in Hackie's bubble: only "MAGIC-LECTURE" convinces the judge.
+    if (/replied to you in your speech bubble/.test(sys)) {
+      const said = ((body.messages.find((m) => m.role === 'user')?.content || '').match(/<user_reply>\n([\s\S]*?)\n<\/user_reply>/) || [])[1] || '';
+      const yes = /MAGIC-LECTURE/.test(said);
+      return reply({ content: JSON.stringify(yes ? { verdict: 'work', allow: true, message: 'APPEAL-OK: fine, you win this one.' } : { verdict: 'slack', allow: false, message: 'APPEAL-NO: nice try, recruit.' }) });
+    }
+    // Label reviews: only pages that look like study material get relabeled.
+    if (/You review label changes/.test(sys)) {
+      const pageText = ((body.messages.find((m) => m.role === 'user')?.content || '').match(/<page>([\s\S]*?)<\/page>/) || [])[1] || '';
+      const ok = /tutorial|lecture|linked list|C\+\+/i.test(pageText);
+      return reply({ content: JSON.stringify(ok ? { approve: true, message: 'REVIEW-OK: fine, but I still check every page.' } : { approve: false, message: 'REVIEW-NO: that page is not work.' }) });
+    }
+
     const user = body.messages.find((m) => m.role === 'user')?.content || '';
     const verdict = /Page information blocked/.test(user)
       ? { category: 'slack', reason: 'Sensitive content.', nudge: 'Whatever that was, close it, recruit.' }
@@ -300,7 +313,7 @@ async function main() {
       return file;
     };
     const ui = (sel) =>
-      inPage(`(() => { const r = document.querySelector('taskwhip-hackie')?.shadowRoot; const el = r?.querySelector(${JSON.stringify(sel)}); return el ? { hidden: el.hidden, cls: el.className, text: el.textContent.trim().slice(0, 240) } : null; })()`);
+      inPage(`(() => { const r = document.querySelector('taskwhip-hackie')?.shadowRoot; const el = r?.querySelector(${JSON.stringify(sel)}); if (!el) return null; const c = el.cloneNode(true); c.querySelectorAll('style').forEach((x) => x.remove()); return { hidden: el.hidden, cls: el.className, text: c.textContent.trim().slice(0, 240) }; })()`);
     const clickUi = (sel) => inPage(`document.querySelector('taskwhip-hackie').shadowRoot.querySelector(${JSON.stringify(sel)}).click()`);
     const bgState = () => bg('taskwhip.refresh("e2e").then(({ state, decision }) => ({ current: state.current, streak: state.streak, decision }))');
 
@@ -371,13 +384,44 @@ async function main() {
     check('stats recorded slack time', today?.totals?.slack > 20, `${Math.round(today?.totals?.slack)}s slack`);
     check('events counted', today?.events?.nudges >= 1 && today?.events?.whips >= 1 && today?.events?.blocks >= 1, JSON.stringify(today?.events));
 
-    // Back to work.
+    // Navigating away and back doesn't escape a lockdown (it used to vanish until the next repeat).
+    await cdp.send('Page.navigate', { url: 'about:blank' }, pg);
+    await sleep(800);
+    await cdp.send('Page.navigate', { url: `${base}/cats2` }, pg);
+    const again = await waitFor('.block', (el) => !el.hidden, 6000);
+    check('lockdown comes straight back after navigating away and back', Boolean(again) && /Still in lockdown|follows you|Refreshing won't|same lockdown/i.test(again.text), again?.text?.slice(0, 150));
+
+    // Back to work: a promise, not a reset.
     await clickUi('[data-act="back"]');
     await sleep(2500);
     s = await bgState();
     check('"Back to work" opens the task link', s.current?.url === workUrl, s.current?.url);
     check('work page is classified as work', s.current?.category === 'work', s.current?.reason);
-    check('slack streak resets', s.streak.slack === 0, JSON.stringify(s.streak));
+    const promised = await bg('taskwhip.state()');
+    check('"Back to work" is a promise: streak and lockdown wait for real work', promised.streak.slack > 0 && Boolean(promised.lockdown) && Boolean(promised.comeback), JSON.stringify({ slack: Math.round(promised.streak.slack), lockdown: Boolean(promised.lockdown), comeback: Boolean(promised.comeback) }));
+
+    // Fake comeback: straight back to slacking.
+    await cdp.send('Page.navigate', { url: `${base}/cats` }, pg);
+    const fake = await waitFor('.block', (el) => !el.hidden, 6000);
+    const fakeState = await bg('taskwhip.state()');
+    const fakeAnger = await bg('taskwhip.anger()');
+    check('fake comeback: the lockdown is back at once and Hackie calls it out', Boolean(fake) && /Back to work|a lap|FAKE COMEBACK|promised me/i.test(fake.text), fake?.text?.slice(0, 170));
+    check('fake comeback: Hackie gets angry instead of resetting', fakeState.fakeComebacks === 1 && fakeAnger.level >= 2 && fakeState.streak.slack > 0, `${fakeAnger.label}: ${fakeAnger.reasons.join(', ')}`);
+    await shot('3b-fake-comeback');
+
+    // Only real work ends it (thresholds.streakResetMin of work time; sped up here).
+    await cdp.send('Page.navigate', { url: workUrl }, pg);
+    await sleep(1500);
+    await bgState();
+    let calmed = null;
+    for (let i = 0; i < 5 && !(calmed && calmed.streak.slack === 0 && !calmed.lockdown); i++) {
+      // (a refresh racing this write can undo it, so retry)
+      await bg(`taskwhip.state().then((st) => { st.streak.calm = ${testSettings.thresholds.streakResetMin * 60 - 1}; return chrome.storage.session.set({ state: st }); })`);
+      await sleep(1500);
+      s = await bgState();
+      calmed = await bg('taskwhip.state()');
+    }
+    check('real work calms Hackie down: streak, lockdown and fake comebacks reset', calmed.streak.slack === 0 && !calmed.lockdown && !calmed.comeback && calmed.fakeComebacks === 0, JSON.stringify({ slack: calmed.streak.slack, calm: Math.round(calmed.streak.calm), lockdown: calmed.lockdown, fake: calmed.fakeComebacks }));
 
     // A relevant tutorial on the "slacking" site counts as work.
     await cdp.send('Page.navigate', { url: `${base}/tutorial` }, pg);
@@ -398,7 +442,7 @@ async function main() {
     await clickUi('.panel [data-act="isWork"]');
     await sleep(1500);
     s = await bgState();
-    check('"It\'s for my task" overrides the page', s.current?.category === 'work' && s.current?.source === 'override', s.current?.reason);
+    check('"It\'s for my task" overrides the page (no AI set up yet: nothing reviews it)', s.current?.category === 'work' && s.current?.source === 'override', s.current?.reason);
 
 
     // The team's features: shrinking snoozes, the angry mom, exercise breaks, reset mood, test triggers.
@@ -609,6 +653,115 @@ async function main() {
     await bg(`chrome.storage.local.set({ restoreLockedUntil: 0 })`);
     const calmJudge = await bg(`taskwhip.judge('snooze', null)`);
     check('calm: clicks go straight through', calmJudge.allow === true);
+
+    // Relabeling toward work is reviewed by the AI, page by page.
+    await cdp.send('Page.navigate', { url: `${base}/gossip` }, pg);
+    await sleep(2500);
+    await bgState();
+    const gossipRelabel = await bg(`taskwhip.relabel({ scope: 'page', category: 'work', url: '${base}/gossip' })`);
+    s = await bgState();
+    check('relabeling a gossip page as work: the AI review refuses', gossipRelabel.denied === true && /REVIEW-NO/.test(gossipRelabel.message) && s.current?.category === 'slack', gossipRelabel.message);
+    const stricter = await bg(`taskwhip.relabel({ scope: 'page', category: 'slack', url: '${base}/tutorial' })`);
+    check('making a page stricter needs no review', stricter.ok === true && !stricter.denied);
+    await bg(`taskwhip.relabel({ scope: 'page', category: 'auto', url: '${base}/tutorial' })`);
+    await cdp.send('Page.navigate', { url: `${base}/tutorial` }, pg);
+    await sleep(2500);
+    await bgState();
+    const siteRelabel = await bg(`taskwhip.relabel({ scope: 'site', category: 'work', url: '${base}/tutorial' })`);
+    const siteOverrides = await bg(`chrome.storage.local.get('overrides').then((r) => r.overrides?.sites || {})`);
+    check('relabeling the whole site from a tutorial: approved, as a page-by-page label', siteRelabel.ok === true && /REVIEW-OK/.test(siteRelabel.message) && siteOverrides['videos.localhost'] === 'work', JSON.stringify({ msg: siteRelabel.message, siteOverrides }));
+    await cdp.send('Page.navigate', { url: `${base}/gossip` }, pg);
+    await sleep(2500);
+    s = await bgState();
+    check('the site label is judged page by page: gossip on the "work" site is still slacking', s.current?.category === 'slack' && /judges each page/.test(s.current?.reason || ''), s.current?.reason);
+    await bg(`taskwhip.relabel({ scope: 'site', category: 'slack', url: '${base}/' })`);
+
+    // "It's for my task" is reviewed too; then the user argues back in the speech bubble.
+    await cdp.send('Page.navigate', { url: `${base}/gossip` }, pg);
+    await sleep(2500);
+    await bgState();
+    await bg('taskwhip.fire(1)');
+    await sleep(900);
+    await clickUi('.bubble [data-act="isWork"]');
+    let refusedIsWork = null;
+    for (let i = 0; i < 20 && !(refusedIsWork && /REVIEW-NO/.test(refusedIsWork.text)); i++) {
+      await sleep(300);
+      refusedIsWork = await ui('.bubble');
+    }
+    s = await bgState();
+    check('"It\'s for my task" on a gossip page: the AI review refuses the relabel', refusedIsWork && /REVIEW-NO/.test(refusedIsWork.text) && /Override denied/.test(refusedIsWork.text) && s.current?.category === 'slack', JSON.stringify({ text: refusedIsWork?.text, cat: s.current?.category, src: s.current?.source, why: s.current?.reason, ai: aiRequests.slice(-3).map((r) => (r.body.messages.find((m) => m.role === 'system')?.content || '').slice(0, 60)) }));
+    const replyBox = await ui('form.reply');
+    check('the speech bubble has a reply box', Boolean(replyBox));
+
+    // Typing a reply never reaches the page's own keyboard shortcuts (YouTube's "k", "f", space…).
+    await inPage(`window.__pageKeys = 0; document.addEventListener('keydown', () => window.__pageKeys++);`);
+    await inPage(`document.querySelector('taskwhip-hackie').shadowRoot.querySelector('form.reply input').focus()`);
+    await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'k', code: 'KeyK', text: 'k', windowsVirtualKeyCode: 75 }, pg);
+    await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'k', code: 'KeyK', windowsVirtualKeyCode: 75 }, pg);
+    const typed = await inPage(`({ value: document.querySelector('taskwhip-hackie').shadowRoot.querySelector('form.reply input').value, pageKeys: window.__pageKeys })`);
+    check("typing a reply stays out of the page's keyboard shortcuts", typed.value === 'k' && typed.pageKeys === 0, JSON.stringify(typed));
+
+    const sendReply = (text) =>
+      inPage(`(() => { const f = document.querySelector('taskwhip-hackie').shadowRoot.querySelector('form.reply'); f.querySelector('input').value = ${JSON.stringify(text)}; f.querySelector('button[type=submit]').click(); })()`);
+    await sendReply('but I really want to watch it');
+    let answered = null;
+    for (let i = 0; i < 20 && !(answered && /APPEAL-NO/.test(answered.text)); i++) {
+      await sleep(300);
+      answered = await ui('.bubble');
+    }
+    s = await bgState();
+    check('a weak reply: Hackie answers in the bubble, unconvinced', answered && /APPEAL-NO/.test(answered.text) && /You: "but I really want to watch it"/.test(answered.text) && s.current?.category === 'slack', answered?.text);
+    const boxAfter = await inPage(`document.querySelector('taskwhip-hackie').shadowRoot.querySelector('form.reply input')?.value`);
+    check('the reply box is cleared once Hackie answers', boxAfter === '', JSON.stringify(boxAfter));
+    await shot('4c-reply');
+    await sendReply('MAGIC-LECTURE: this video is the lecture for my course');
+    let cheered = null;
+    for (let i = 0; i < 20 && !(cheered && /APPEAL-OK/.test(cheered.text)); i++) {
+      await sleep(300);
+      cheered = await ui('.bubble');
+    }
+    await sleep(800);
+    s = await bgState();
+    check('a convincing reply: the judge reconsiders and the page counts as work', cheered && /APPEAL-OK/.test(cheered.text) && s.current?.category === 'work' && s.current?.source === 'override', `${cheered?.text} · ${s.current?.category}/${s.current?.source}`);
+    await bg(`taskwhip.relabel({ scope: 'page', category: 'auto', url: '${base}/gossip' })`);
+
+    // Zero-slack mode: a slacking page locks down the moment it opens, and the task page opens beside it.
+    await bg(`taskwhip.action('resetMood')`);
+    await cdp.send('Page.navigate', { url: workUrl }, pg);
+    await sleep(1500);
+    await bgState();
+    await bg(`chrome.storage.local.get('settings').then((r) => chrome.storage.local.set({ settings: { ...r.settings, zeroSlack: true } }))`);
+    await sleep(500);
+    const idsBefore = await bg('chrome.tabs.query({}).then((ts) => ts.map((t) => t.id))');
+    await cdp.send('Page.navigate', { url: `${base}/cats2?zero=1` }, pg);
+    let zeroTabs = [];
+    for (let i = 0; i < 25 && !zeroTabs.some((t) => t.url === workUrl && t.active); i++) {
+      await sleep(400);
+      zeroTabs = await bg('chrome.tabs.query({}).then((ts) => ts.map((t) => ({ id: t.id, url: t.url, active: t.active })))');
+    }
+    const zState = await bg('taskwhip.state()');
+    check('zero-slack: a slacking page locks down the moment it opens', Boolean(zState.lockdown) && zState.lastFire.level === 3 && zState.streak.slack < 20, JSON.stringify({ lockdown: Boolean(zState.lockdown), level: zState.lastFire.level, streakSec: Math.round(zState.streak.slack) }));
+    check('zero-slack: the task page opens next to it (or comes to the front)', zeroTabs.some((t) => t.url === workUrl && t.active), zeroTabs.map((t) => t.url.replace(/^https?:\/\//, '') + (t.active ? ' (active)' : '')).join(' | '));
+    // Back on the slacking tab: still locked, no begging; argue in the reply box.
+    await bg("chrome.tabs.query({}).then((ts) => chrome.tabs.update(ts.find((t) => t.url.includes('zero=1')).id, { active: true }))");
+    const zBlock = await waitFor('.block', (el) => !el.hidden, 8000);
+    const zReply = await ui('.block form.reply');
+    check('zero-slack lockdown: no begging or exercise, only work or a reply', zBlock && /Zero-slack mode/.test(zBlock.text) && !/Beg for/.test(zBlock.text) && !/I did/.test(zBlock.text) && Boolean(zReply), zBlock?.text?.slice(0, 170));
+    await shot('3c-zero-slack');
+    await inPage(`(() => { const f = document.querySelector('taskwhip-hackie').shadowRoot.querySelector('.block form.reply'); f.querySelector('input').value = 'MAGIC-LECTURE: this one is my course lecture'; f.querySelector('button[type=submit]').click(); })()`);
+    let unlocked = null;
+    for (let i = 0; i < 20; i++) {
+      await sleep(400);
+      unlocked = await ui('.block');
+      if (!unlocked || unlocked.hidden) break;
+    }
+    await sleep(800);
+    s = await bgState();
+    check('zero-slack: a convincing reply unlocks a wrongly flagged page', (!unlocked || unlocked.hidden) && s.current?.category === 'work' && s.current?.source === 'override', `${s.current?.category}/${s.current?.source}`);
+    await bg(`chrome.storage.local.get('settings').then((r) => chrome.storage.local.set({ settings: { ...r.settings, zeroSlack: false } }))`);
+    await bg(`taskwhip.relabel({ scope: 'page', category: 'auto', url: '${base}/cats2?zero=1' })`);
+    await bg(`chrome.tabs.query({}).then((ts) => chrome.tabs.remove(ts.filter((t) => !${JSON.stringify(idsBefore)}.includes(t.id)).map((t) => t.id)))`);
+    await bg(`taskwhip.action('resetMood')`);
 
     // Seed a believable week so the popup/report screenshots show charts.
     await bg(`(async () => {

@@ -3,6 +3,7 @@
 
 import { CATEGORY_LABEL } from './defaults.js';
 import { PRIVATE_DOMAIN } from './sensitive.js';
+import { searchQuery } from './search.js';
 
 // Every sensitive page shares one key, so nothing about it is stored or cached per-URL.
 export const PRIVATE_KEY = '(private)';
@@ -27,6 +28,9 @@ export function pageKey(input) {
   const u = toUrl(input);
   if (!u) return '';
   const host = displayDomain(u.hostname);
+  // Each search gets its own key (and its own verdict): "c++ docs" and "funny cats" aren't the same page.
+  const search = searchQuery(u);
+  if (search) return `${host}${u.pathname.replace(/;.*$/, '').replace(/\/+$/, '')}?q=${search.query}`; // drop ;_ylt= style tracking tokens
   if (/(^|\.)youtube\.com$/.test(host) && u.pathname === '/watch' && u.searchParams.get('v')) {
     return `${host}/watch?v=${u.searchParams.get('v')}`;
   }
@@ -112,13 +116,24 @@ function headlineText(ctx) {
     .join(' \n ');
 }
 
+/** A label the user put on a whole site (overrides.sites), matching subdomains too. */
+export function siteLabel(overrides, hostname) {
+  const host = String(hostname || '').toLowerCase().replace(/^www\./, '');
+  let best = null;
+  for (const [h, category] of Object.entries(overrides?.sites || {})) {
+    if (!CATEGORY_LABEL[category]) continue;
+    if ((host === h || host.endsWith('.' + h)) && (!best || h.length > best.host.length)) best = { host: h, category };
+  }
+  return best;
+}
+
 /**
  * Classify a page.
  * @param {object} p
  * @param {string} p.url
  * @param {object|null} p.ctx        What the content script read from the page.
  * @param {object} p.settings        Merged settings.
- * @param {object} [p.overrides]     { pages: { [pageKey]: category } }
+ * @param {object} [p.overrides]     { pages: { [pageKey]: category }, sites: { [host]: category } }
  * @param {object|null} [p.aiVerdict] Cached AI verdict { category, reason, nudge }.
  * @param {object|null} [p.sensitive] From findSensitive(): the page is on (or proxies) a sensitive site.
  */
@@ -153,6 +168,39 @@ export function classifyPage({ url, ctx = null, settings, overrides = {}, aiVerd
   const override = overrides?.pages?.[key];
   if (override) {
     return { ...base, category: override, source: 'override', reason: `You marked this page as ${CATEGORY_LABEL[override]}.` };
+  }
+
+  // Search results are judged by the query, never by the search engine or its site rules.
+  const search = searchQuery(u);
+  if (search) {
+    const sbase = { ...base, search };
+    if (aiVerdict && CATEGORY_LABEL[aiVerdict.category]) {
+      return { ...sbase, category: aiVerdict.category, source: 'ai', reason: aiVerdict.reason || `Claude judged the search "${search.query}".`, nudge: aiVerdict.nudge || '' };
+    }
+    const taskHits = findHits(search.query, taskKeywords(settings.task));
+    const slackHits = findHits(search.query, settings.slackKeywords);
+    if (taskHits.length > slackHits.length) {
+      return { ...sbase, category: 'work', source: 'search', reason: `Your search "${search.query}" matches your task (${taskHits.join(', ')}).`, needsAI: Boolean(ctx) };
+    }
+    if (slackHits.length) {
+      return { ...sbase, category: 'slack', source: 'search', reason: `Your search "${search.query}" looks like slacking (${slackHits.join(', ')}).`, needsAI: Boolean(ctx) };
+    }
+    return { ...sbase, category: 'neutral', source: 'search', reason: `A ${search.engine} search for "${search.query}". Hackie judges each search on its own.`, needsAI: Boolean(ctx) };
+  }
+
+  // A whole-site label still gets judged page by page: the AI's verdict on this exact page wins.
+  const claim = siteLabel(overrides, u.hostname);
+  if (claim) {
+    if (aiVerdict && CATEGORY_LABEL[aiVerdict.category]) {
+      return {
+        ...base,
+        category: aiVerdict.category,
+        source: 'ai',
+        reason: aiVerdict.category === claim.category ? aiVerdict.reason || 'Claude judged this page.' : `You labeled ${claim.host} as ${CATEGORY_LABEL[claim.category]}, but Hackie judges each page: ${aiVerdict.reason || 'this one isn\'t.'}`,
+        nudge: aiVerdict.nudge || '',
+      };
+    }
+    return { ...base, category: claim.category, source: 'site-label', reason: `You labeled ${claim.host} as ${CATEGORY_LABEL[claim.category]}. Hackie still checks each page.`, needsAI: Boolean(ctx) };
   }
 
   const workRule = bestRuleMatch(u, settings.workSites);

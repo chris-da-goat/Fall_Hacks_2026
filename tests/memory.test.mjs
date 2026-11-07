@@ -19,6 +19,7 @@ import {
   memoryForPrompt,
 } from '../extension/lib/memory.js';
 import { PRIVATE_DOMAIN as SENSITIVE_PRIVATE_DOMAIN } from '../extension/lib/sensitive.js';
+import { pageKey } from '../extension/lib/classify.js';
 
 const NOW = Date.UTC(2026, 10, 7, 12, 0, 0);
 const HOUR = 3600 * 1000;
@@ -115,6 +116,39 @@ test('work pages are only remembered for work, http(s), non-sensitive pages with
   recordTime(mem, { ...page, category: 'work', sensitive: true });
   assert.deepEqual(mem.workPages, {});
   assert.ok(mem.sites['example.com'], 'the time is still recorded against the site');
+});
+
+test('work time on a search results page counts for the site but is never a work page', () => {
+  const mem = emptyMemory();
+  const searches = [
+    ['google.com', 'https://www.google.com/search?q=c%2B%2B+linked+list&sxsrf=abc'],
+    ['google.co.uk', 'https://www.google.co.uk/search?q=c%2B%2B+docs'],
+    ['bing.com', 'https://www.bing.com/search?q=linked+list'],
+    ['duckduckgo.com', 'https://duckduckgo.com/?q=c%2B%2B+pointers'],
+    ['youtube.com', 'https://www.youtube.com/results?search_query=linked+list+tutorial'],
+  ];
+  for (const [domain, url] of searches) {
+    recordTime(mem, { domain, category: 'work', seconds: 40, newVisit: true, pageKey: pageKey(url), url, title: 'c++ linked list - Search', now: NOW });
+  }
+  assert.deepEqual(mem.workPages, {});
+  for (const [domain] of searches) {
+    assert.deepEqual(mem.sites[domain], { slackSec: 0, workSec: 40, neutralSec: 0, visits: 1, lastSeen: NOW }, domain);
+  }
+});
+
+test('a normal work page is still remembered next to a search', () => {
+  const mem = emptyMemory();
+  const search = 'https://www.google.com/search?q=c%2B%2B+docs';
+  const docs = 'https://en.cppreference.com/w/cpp/container/list';
+  const video = 'https://www.youtube.com/watch?v=ll123';
+  const maps = 'https://www.google.com/maps?q=library';
+  recordTime(mem, { domain: 'google.com', category: 'work', seconds: 20, pageKey: pageKey(search), url: search, title: 'c++ docs - Google Search', now: NOW });
+  recordTime(mem, { domain: 'en.cppreference.com', category: 'work', seconds: 90, pageKey: pageKey(docs), url: docs, title: 'std::list', now: NOW });
+  recordTime(mem, { domain: 'youtube.com', category: 'work', seconds: 60, pageKey: pageKey(video), url: video, title: 'Linked lists in C++', now: NOW });
+  recordTime(mem, { domain: 'google.com', category: 'work', seconds: 15, pageKey: pageKey(maps), url: maps, title: 'Library - Google Maps', now: NOW });
+  assert.deepEqual(Object.keys(mem.workPages).sort(), ['en.cppreference.com/w/cpp/container/list', 'google.com/maps', 'youtube.com/watch?v=ll123']);
+  assert.deepEqual(mem.workPages['en.cppreference.com/w/cpp/container/list'], { url: docs, title: 'std::list', seconds: 90, lastSeen: NOW });
+  assert.equal(mem.sites['google.com'].workSec, 35, 'search and non-search time both count for the site');
 });
 
 test('sensitive pages are stored under PRIVATE_DOMAIN with no URL or title anywhere', () => {

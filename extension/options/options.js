@@ -18,6 +18,7 @@ function fill() {
   $('taskTitle').value = settings.task.title || '';
   $('taskKeywords').value = (settings.task.keywords || []).join(', ');
   $('taskUrl').value = settings.task.url || '';
+  $('zeroSlack').checked = Boolean(settings.zeroSlack);
   $('workSites').value = settings.workSites.join('\n');
   $('slackSites').value = settings.slackSites.join('\n');
   $('slackKeywords').value = settings.slackKeywords.join(', ');
@@ -55,6 +56,7 @@ function collect() {
   settings.task.title = $('taskTitle').value.trim();
   settings.task.keywords = splitList($('taskKeywords').value);
   settings.task.url = $('taskUrl').value.trim();
+  settings.zeroSlack = $('zeroSlack').checked;
   settings.workSites = splitList($('workSites').value.replace(/,/g, '\n'));
   settings.slackSites = splitList($('slackSites').value.replace(/,/g, '\n'));
   settings.slackKeywords = splitList($('slackKeywords').value);
@@ -301,7 +303,7 @@ async function resetStats() {
 // ---------------------------------------------------------------------------
 // Settings file (export / import settings only)
 
-const SETTINGS_KEYS = ['task', 'workSites', 'slackSites', 'thresholds', 'effects', 'ai', 'memory', 'debug', 'sensitiveSites'];
+const SETTINGS_KEYS = ['zeroSlack', 'task', 'workSites', 'slackSites', 'thresholds', 'effects', 'ai', 'memory', 'debug', 'sensitiveSites'];
 const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
 function localDay(d = new Date()) {

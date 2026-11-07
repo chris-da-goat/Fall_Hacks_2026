@@ -29,6 +29,7 @@ const REFUSABLE = {
   pause: { asking: 'whether you can pause tracking', refused: 'Pause refused' },
   resetMood: { asking: 'whether you can reset his mood', refused: 'Mood reset refused' },
   restore: { asking: 'whether you get your tabs back', refused: 'Restore refused' },
+  relabel: { asking: 'whether that label is fair', refused: 'Relabel refused' },
 };
 const MOOD_RANK = ['happy', 'stern', 'worried', 'angry', 'furious'];
 const DECIDING_DELAY_MS = 250; // a calm Hackie answers at once; only show "deciding" when it takes a while
@@ -435,7 +436,7 @@ function renderSites() {
       });
       if (cat.tagName === 'SPAN') cat.title = '';
       else cat.addEventListener('click', async () => {
-        await send('popup:setCategory', { scope: 'site', category: NEXT_CATEGORY[s.lastCategory], url: `https://${s.domain}/` });
+        await askHackie('relabel', 'popup:setCategory', { scope: 'site', category: NEXT_CATEGORY[s.lastCategory], url: `https://${s.domain}/` });
         load();
       });
       const time = Object.assign(document.createElement('span'), { className: 'time num', textContent: formatDuration(s.total, { compact: true }) });
@@ -841,7 +842,7 @@ document.querySelectorAll('.seg button').forEach((btn) => {
     if (!data?.current?.url) return;
     let category = btn.dataset.cat;
     if (scope === 'page' && data.pageOverride === category) category = 'auto';
-    await send('popup:setCategory', { scope, category, url: data.current.url });
+    await askHackie('relabel', 'popup:setCategory', { scope, category, url: data.current.url });
     load();
   });
 });

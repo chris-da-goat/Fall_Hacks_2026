@@ -116,3 +116,40 @@ export const CHEERS = [
 export function pickCheer(random = Math.random) {
   return pickFrom(CHEERS, random);
 }
+
+// ---------------------------------------------------------------------------
+// Escapes that don't work: leaving and coming back during a lockdown, and fake comebacks
+// ("Back to work", then straight back to slacking). {site}, {task}, {away} are filled in.
+
+export const LOCKDOWN_STAYS = [
+  "Still in lockdown. Leaving and coming back doesn't reset me, recruit. {task} first.",
+  'Nice try. The lockdown follows you to every slacking tab until you actually work on {task}.',
+  "Refreshing won't save you. The lockdown stays until you do some real work on {task}.",
+  'New tab, same lockdown. A few minutes of real work on {task} and I unlock.',
+];
+
+export const FAKE_COMEBACK = [
+  'You clicked "Back to work" and came RIGHT back to {site}? I saw that.',
+  "Back to work for {away}? That's not work, that's a lap. Get back to {task}!",
+  'FAKE COMEBACK DETECTED. Real work on {task} first, THEN we talk.',
+  "You promised me {task}. {away} later you're on {site} again. Not cool, recruit.",
+];
+
+export function lockdownStaysLine(vars, random = Math.random) {
+  return fillLine(LOCKDOWN_STAYS[Math.floor(random() * LOCKDOWN_STAYS.length)], vars);
+}
+
+export function fakeComebackLine(vars, random = Math.random) {
+  return fillLine(FAKE_COMEBACK[Math.floor(random() * FAKE_COMEBACK.length)], vars);
+}
+
+// Zero-slack mode lockdowns. {site}, {task} are filled in.
+export const ZERO_SLACK = [
+  "Zero-slack mode. {site} counts as slacking, so it's locked. {task} is open. Think I'm wrong? Tell me below.",
+  'Zero slack means zero slack. This page is locked and {task} is waiting in the next tab.',
+  "Nope. Zero-slack mode is on and this is slacking. Back to {task}, or convince me below that it's work.",
+];
+
+export function zeroSlackLine(vars, random = Math.random) {
+  return fillLine(ZERO_SLACK[Math.floor(random() * ZERO_SLACK.length)], vars);
+}

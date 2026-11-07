@@ -126,3 +126,33 @@ test('values that start a sentence are capitalized', async () => {
   assert.equal(fillLine('{task} first! Then {task}.', { task: 'math' }), 'Math first! Then math.');
   assert.equal(fillLine('Back to {task}, recruit.', { task: 'my essay' }), 'Back to my essay, recruit.');
 });
+
+test('escape lines: lockdown stays, fake comebacks', async () => {
+  const { lockdownStaysLine, fakeComebackLine, LOCKDOWN_STAYS, FAKE_COMEBACK } = await import('../extension/lib/lines.js');
+  for (let i = 0; i < LOCKDOWN_STAYS.length; i++) {
+    const line = lockdownStaysLine({ site: 'YouTube', task: 'the linked list' }, () => i / LOCKDOWN_STAYS.length);
+    assert.ok(!/\{\w+\}/.test(line), line);
+    assert.match(line, /linked list/i);
+  }
+  for (let i = 0; i < FAKE_COMEBACK.length; i++) {
+    const line = fakeComebackLine({ site: 'YouTube', task: 'the linked list', away: '12 seconds' }, () => i / FAKE_COMEBACK.length);
+    assert.ok(!/\{\w+\}/.test(line), line);
+  }
+});
+
+test('zero-slack lines fill every placeholder and mention the task', async () => {
+  const { zeroSlackLine, ZERO_SLACK } = await import('../extension/lib/lines.js');
+  assert.ok(ZERO_SLACK.length > 0);
+  for (const template of ZERO_SLACK) {
+    assert.ok(template.includes('{task}'), template);
+    for (const [, name] of template.matchAll(/\{(\w+)\}/g)) assert.ok(['site', 'task'].includes(name), `unexpected {${name}} in ${template}`);
+  }
+  for (let i = 0; i < ZERO_SLACK.length; i++) {
+    const line = zeroSlackLine({ site: 'YouTube', task: 'the linked list' }, () => i / ZERO_SLACK.length);
+    assert.ok(!PLACEHOLDER.test(line), line);
+    assert.match(line, /linked list/i, line);
+  }
+  // The random default picks one of them too.
+  const line = zeroSlackLine({ site: 'YouTube', task: 'the linked list' });
+  assert.ok(!PLACEHOLDER.test(line), line);
+});

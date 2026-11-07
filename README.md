@@ -7,11 +7,11 @@ A Chrome extension starring **Hackie**, the team's FH26 pixel robot (all of his 
 | any | Walks the screen edges with a live slack timer and idle expressions (😊 😉 😮 💤 🤪 😎 💕). When your mouse comes near he stops and switches to the team's hover face, whose eyes follow the mouse |
 | 5 min | **Nudge**: a speech bubble ("It looks like you're watching YouTube…") with *Back to work*, *I did it!* (an exercise break such as 10 squats), *N more min*, *It's for my task* |
 | 10 min | **Whip**: whip crack (animation + synthesized sound), screen shake, red flash, video paused |
-| 20 min | **Lockdown**: full-screen block. *Back to work* is instant; the exercise and "beg for more time" buttons unlock after 20 s |
+| 20 min | **Lockdown**: full-screen block. *Back to work* is instant; the exercise and "beg for more time" buttons unlock after 20 s. It follows you to every slacking page until you do real work |
 
-Each snooze buys less time (5 → 3 → 2 min), and Hackie goes from worried to a full-on "angry mom" after 4 snoozes in a row. Whenever he's angry or furious he turns orange and red and flips through the team's six angry pictures, steam puffs and all. An exercise break or getting back to work calms Hackie down. Click Hackie (or its timer) for **Hackie's report**: slack streak, next warning, today's work and slacking, exercise breaks, mood, snoozes in a row, *Reset mood*, and a demo slider that fakes the slack streak.
+Each snooze buys less time (5 → 3 → 2 min), and Hackie goes from worried to a full-on "angry mom" after 4 snoozes in a row. Whenever he's angry or furious he turns orange and red and flips through the team's six angry pictures, steam puffs and all. An exercise break or a couple of minutes of real work calms Hackie down. Clicking *Back to work* is only a promise (see "No easy way out"). Click Hackie (or its timer) for **Hackie's report**: slack streak, next warning, today's work and slacking, exercise breaks, mood, snoozes in a row, *Reset mood*, and a demo slider that fakes the slack streak.
 
-Thresholds, sounds, and effects are all configurable (Gentle / Normal / Drill sergeant presets). Spend a couple of minutes on work and the streak resets. Blow through your daily slack budget and every warning escalates a level.
+Thresholds, sounds, and effects are all configurable (Gentle / Normal / Drill sergeant presets). Spend a couple of minutes on work and the streak resets. Blow through your daily slack budget and every warning escalates a level. For no warnings at all, **zero-slack mode** locks every slacking page the moment it opens.
 
 > Hackathon prototype.
 
@@ -53,10 +53,12 @@ In priority order:
 
 1. **Sensitive sites** (see below) are always slacking and stay anonymous.
 2. **Your per-page override** ("It's for my task" or the popup's "just this page").
-3. **Work sites list**: always work.
-4. **AI judge verdict** (optional, cached 24 h per page).
-5. **Slacking sites list**, unless the page mentions your task keywords more than slacking keywords. A YouTube video titled "Linked list in C++ explained" counts as work.
-6. **Keywords** on unknown sites; otherwise neutral.
+3. **Search results are judged by what you searched for**, never by the search engine. Each query gets its own verdict: "c++ docs" on Google is work for a C++ task, "funny cat videos" is slacking, "weather tomorrow" is neutral. The AI judge reads the query; without it, your task and slacking keywords decide, and anything else is neutral. Site lists and site labels don't apply to search pages, so a search engine is never blocked wholesale. This covers Google, Bing, DuckDuckGo, Yahoo, Baidu, Yandex, Ecosia, Brave Search, Startpage, Kagi, Naver and YouTube search ([`lib/search.js`](extension/lib/search.js)).
+4. **Your whole-site label** (the popup's "whole site" or the Top sites pills, toward work or neutral). The AI judge's verdict on the page itself still wins, so a cat video stays slacking on a site you labeled as work.
+5. **Work sites list**: always work.
+6. **AI judge verdict** (optional, cached 24 h per page).
+7. **Slacking sites list**, unless the page mentions your task keywords more than slacking keywords. A YouTube video titled "Linked list in C++ explained" counts as work.
+8. **Keywords** on unknown sites; otherwise neutral.
 
 The content script reads the title, description, headings, YouTube video title and channel, Shorts/Reels format, a short text excerpt, and whether media is playing. Watching a video counts even when you aren't touching the mouse. Time only counts while Chrome is focused and you're active (or a video is playing).
 
@@ -90,7 +92,7 @@ The harness lives in `lib/agent.js` (tool-calling loop) and `lib/agent-tools.js`
 | `get_history` | Daily totals for the last 1–14 days, top work and slacking sites |
 | `get_settings` | Task, site lists, thresholds, effects, AI provider and model (never keys) |
 | `get_debug_log` | Recent tracking decisions, each with a plain-English "why" |
-| `mark_site` | Reclassifies a site (only when you ask) |
+| `mark_site` | Reclassifies a site (only when you ask; reviewed like any label change, see "Talking back to Hackie") |
 | `take_break` | Starts or ends a break (only when you ask) |
 
 **Memory and mood.** Every question comes with all of Hackie's memory in the instructions: every site with its minutes and habit level, the work pages you use, your projects, facts and incidents. If it gets very large, the oldest and least-used entries are left out first. Ask Hackie also gets his mood right now (calm, annoyed, angry or furious; see "Angry Hackie" below) and why: snoozes, begging, the page you're on, today's minutes. The mood sets the tone:
@@ -121,7 +123,7 @@ Debug mode also has a **testing switch**, "count time even when Chrome isn't foc
 - the work pages you actually use;
 - projects (yours, or ones the AI saved);
 - facts the AI learned ("binges Shorts after dinner");
-- incidents: lockdowns, begging, and tabs Hackie closed.
+- incidents: lockdowns, begging, fake comebacks, replies, label reviews, and tabs Hackie closed.
 
 Sensitive sites are only kept as an anonymous "Private site" total. Sites that are a slacking **habit** get warnings sooner: thresholds × 0.6 after 30 min of total slacking, × 0.4 after 2 h, or when flagged by you or the AI.
 
@@ -141,6 +143,29 @@ Sensitive sites are only kept as an anonymous "Private site" total. Sites that a
 
 Settings can be exported and imported as JSON at the bottom of the settings page. API keys are left out unless you tick "Include API keys".
 
+## No easy way out
+
+"Real work" below means `thresholds.streakResetMin` of time on work pages (2 min by default).
+
+**Lockdowns stay on.** Once a lockdown fires, it comes back on every slacking page: new tabs, other slacking sites, and the same page after you navigate away and back. It ends when:
+
+- you do real work;
+- Hackie allows an "I did it!" exercise break or a Reset mood;
+- a page gets accepted as work ("It's for my task", a reply, or the popup's Work button).
+
+A granted beg only pauses it for the begged minutes, and so does a break. Being away from Chrome (in another app, or idle) for the same 2 min also ends it; a new-tab page in a focused Chrome doesn't count as away.
+
+**"Back to work" is a promise, not a reset.** The button still takes you to a work page, but your slack streak, snooze count, begs and any lockdown stay until you've done real work. While a lockdown or a promise is open, only work pages calm Hackie down; neutral pages don't.
+
+Going back to slacking first, or staying on the page for 20 s, is a **fake comeback**. Hackie calls it out (`FAKE_COMEBACK` in `lib/lines.js`), warns you again at once, and gets angry. The second fake comeback makes him furious.
+
+**Zero-slack mode** (Settings → How strict is Hackie?, off by default):
+
+- Every page judged as slacking locks down the moment it opens.
+- If the AI judge is still reading the page, Hackie waits for its verdict, so a lecture isn't locked by mistake.
+- Your task page opens next to the locked tab, or comes to the front if it's already open. That happens once per page (per 30 min), so you can come back and argue. The task page is your task link, or else a project link or your most-used work page from memory.
+- The lockdown has no beg or exercise buttons. To get out, go to work, argue in the reply box, or use "This page is actually for my task" (reviewed by the AI).
+
 ## Angry Hackie overrides your clicks
 
 When you keep slacking, Hackie gets angry. While he's angry he can refuse the buttons that would let you off the hook. Set this in Settings → AI → "Angry Hackie can refuse my clicks" (on by default).
@@ -151,8 +176,8 @@ How angry he is (`lib/anger.js`; shown in the popup):
 |---|---|---|
 | Calm | default | always go through |
 | Annoyed | one snooze, or a whip/lockdown on screen | always go through |
-| Angry | 3 snoozes in a row, any begging during a lockdown, a whip on a strong habit site or over your daily budget, or he closed your tabs in the last 15 min | **the AI decides** (`lib/arbiter.js`) |
-| Furious | more than 3 snoozes, or begging as many times as it takes to get your tabs closed | **refused**; the AI only writes the angry speech |
+| Angry | 3 snoozes in a row, any begging during a lockdown, a whip on a strong habit site or over your daily budget, or he closed your tabs in the last 15 min, or a fake comeback | **the AI decides** (`lib/arbiter.js`) |
+| Furious | more than 3 snoozes, begging as many times as it takes to get your tabs closed, or a second fake comeback | **refused**; the AI only writes the angry speech |
 
 Refusable clicks:
 
@@ -179,6 +204,34 @@ House rules that apply whatever the AI says:
 - **"I did it!" works once per 10 minutes** while he's angry. An honest exercise break is allowed even when he's furious.
 - **No AI or AI unreachable:** angry Hackie refuses snooze, begging, breaks, pause, reset mood, dismiss and the slider, and allows the rest.
 
+## Talking back to Hackie
+
+You can argue with Hackie, and he checks your label changes. Both need an AI provider and key (Settings → AI), even with the automatic judge off, and neither works on sensitive sites.
+
+**Reply in the speech bubble** (`lib/appeal.js`). The nudge, whip and refusal bubbles and the lockdown screen have a reply box. Say why you're there ("this lecture is for my CMPT 225 quiz") and the AI judge hears you out:
+
+- After a warning, it can reclassify the page as work. The warning or lockdown goes away.
+- After a refused click, it can allow the click. A granted beg is a plain snooze.
+- The page itself has to back you up. A good excuse doesn't turn cat videos into work.
+- Angry Hackie is harder to talk round. Furious Hackie never un-refuses a click, but he can still reclassify a page that is plainly work.
+- 3 replies per page per 10 minutes. Replies are logged to memory.
+- Typing in the box doesn't trigger the site's shortcuts (YouTube's k, f or space).
+
+**The AI reviews label changes** (`lib/review.js`). Any relabel that makes Hackie less strict (slacking → neutral or work, neutral → work) goes past the AI, and it can say no. That covers:
+
+- the popup's Work and Neutral buttons, for just this page or the whole site;
+- the Top sites pills;
+- "It's for my task", in the bubble and on the lockdown screen;
+- Ask Hackie's `mark_site` tool.
+
+Making Hackie stricter is never reviewed. Neither are the site lists you type in Settings → "What counts as what"; those stay plain configuration.
+
+Whole-site labels toward work or neutral are judged page by page. They're stored as site labels (`overrides.sites`), not added to your work list, and with the AI judge on, each page on that site still gets its own verdict. A cat video stays slacking even if you labeled YouTube as work.
+
+- Without an AI key, nothing is reviewed.
+- If the AI errors or is rate-limited, the change is refused and you can try again.
+- 3 tries per page or site per 10 minutes, unless one was approved.
+
 ## Sensitive sites
 
 Settings → **Sensitive sites** holds a list of domains that are never described to the AI. It defaults to the 2,056-domain [South Korea blocked-sites list](https://github.com/wpzzz/blocked-sites-in-south-korea/blob/main/kr.list) and is fully editable, with a "Restore the default list" button.
@@ -192,7 +245,7 @@ On sensitive pages:
 
 - The AI receives only *"Page information blocked: the user is viewing sensitive content"*. No URL, domain, title, or text.
 - Nothing readable is stored. Time is logged as "Private site", never by name, in the popup and report.
-- The page counts as slacking, and "It's for my task" is hidden. To change that, remove the site from the list.
+- The page counts as slacking, and "It's for my task" and the reply box are hidden. To change that, remove the site from the list.
 
 To refresh the bundled default list: `node tools/update-sensitive-list.mjs` (or pass a local file path).
 
@@ -209,8 +262,9 @@ extension/
   popup/                   today's report, quick classify, break/pause
   options/                 task, site lists, strictness, effects, AI judge, sensitive sites, data export
   report/                  14-day report page
-  lib/                     pure modules: classify, stats, defaults, lines, ai, agent, agent-tools, debug, sensitive,
-                           memory, enforcer (per-event AI), anger + arbiter (refusing clicks)
+  lib/                     pure modules: classify, search (per-query judging), stats, defaults, lines, ai, agent, agent-tools, debug, sensitive,
+                           memory, enforcer (per-event AI), anger + arbiter (refusing clicks), appeal (replies),
+                           review (label review)
   data/sensitive-sites.js  generated default sensitive list
   icons/                   generated PNGs
 tests/                     node:test unit tests + headless Chrome e2e
@@ -223,18 +277,18 @@ tools/                     icons from hackie.gif (gif.mjs decoder), sensitive-li
 npm test
 ```
 
-Unit tests cover the classifier, stats, AI adapters (mocked `fetch`), sensitive-site matching, the agent and its tools, memory, the per-event AI, the anger rules and arbiter, and Ask Hackie's memory and mood. No install needed (Node 20+).
+Unit tests cover the classifier and site labels, stats, AI adapters (mocked `fetch`), sensitive-site matching, the agent and its tools, memory, the per-event AI, the anger rules (including fake comebacks) and arbiter, Ask Hackie's memory and mood, replies, label review, and the lockdown, fake-comeback and zero-slack lines. No install needed (Node 20+).
 
 ```bash
 npm run e2e
 ```
 
-The end-to-end test launches Chrome headless with a **throwaway profile**, loads the extension via the DevTools protocol, serves fake video/work/proxy pages on `*.localhost`, and walks through nudge → whip → arrest → back to work. It also covers the AI judge, Ask Hackie, the per-event AI closing tabs after begging, and angry Hackie refusing a snooze, all against a fake OpenAI-compatible server. It checks that Hackie's art reaches pages only as `data:` URLs, the angry frames and hover eyes, and that Ask Hackie gets memory and mood. It also covers the sensitive-site redaction and saves screenshots. Set `CHROME_PATH` if Chrome isn't in the default location, `E2E_OUT` for the screenshot folder, or `HEADLESS=0` to watch.
+The end-to-end test launches Chrome headless with a **throwaway profile**, loads the extension via the DevTools protocol, serves fake video/work/proxy pages on `*.localhost`, and walks through nudge → whip → arrest → back to work. It also covers the AI judge, Ask Hackie, the per-event AI closing tabs after begging, and angry Hackie refusing a snooze, all against a fake OpenAI-compatible server. It checks that Hackie's art reaches pages only as `data:` URLs, the angry frames and hover eyes, and that Ask Hackie gets memory and mood. It covers lockdowns that persist across pages, fake comebacks, replies in the bubble (including keys staying out of the page's shortcuts), label review and zero-slack mode. It also covers the sensitive-site redaction and saves screenshots. Set `CHROME_PATH` if Chrome isn't in the default location, `E2E_OUT` for the screenshot folder, or `HEADLESS=0` to watch.
 
 ```bash
 AI_PROVIDER=deepseek AI_KEY=sk-... node tests/live-ai.mjs
 ```
 
-This optional live check hits a real provider. It lists models, judges a cat video vs. a lecture, checks that sensitive pages are redacted, runs the agent's tool loop on fake data, checks that the enforcer closes slacking tabs after begging, and checks that the arbiter refuses a 4th snooze but allows a real lecture. It costs a fraction of a cent. `AI_MODEL` and `AI_BASE_URL` work too (e.g. `AI_PROVIDER=custom AI_BASE_URL=http://localhost:11434/v1 AI_MODEL=llama3.1`).
+This optional live check hits a real provider. It lists models, judges a cat video vs. a lecture, checks that sensitive pages are redacted, runs the agent's tool loop on fake data, checks that the enforcer closes slacking tabs after begging, and checks that the arbiter refuses a 4th snooze but allows a real lecture. It also checks replies (an excuse for cat videos stays slacking, a lecture gets reclassified, furious Hackie keeps a snooze refused, a prompt injection fails) and label review (cat page denied, lecture approved). It costs a fraction of a cent. `AI_MODEL` and `AI_BASE_URL` work too (e.g. `AI_PROVIDER=custom AI_BASE_URL=http://localhost:11434/v1 AI_MODEL=llama3.1`).
 
 Debugging: turn on **Debug mode** in settings, or open the service worker console from `chrome://extensions` and run `await taskwhip.refresh()`, `await taskwhip.popupState()` or `await taskwhip.ask('why aren\'t you tracking?')`.

@@ -109,3 +109,10 @@ test('denial lines exist for every refusable click', () => {
   }
   assert.equal(denialLine('nope'), 'DENIED.');
 });
+
+test('fake comebacks: "Back to work" then straight back to slacking makes Hackie angry, twice furious', () => {
+  assert.equal(angerLevel({ fakeComebacks: 1, now: NOW }).level, 2);
+  assert.match(angerLevel({ fakeComebacks: 1, now: NOW }).reasons.join(), /came right back/);
+  assert.equal(angerLevel({ fakeComebacks: 2, now: NOW }).level, 3);
+  assert.equal(angerLevel({ fakeComebacks: 0, now: NOW }).level, 0);
+});

@@ -120,6 +120,7 @@ export function aiReady(settings) {
 export const DEFAULT_SETTINGS = {
   version: 1,
   trackingEnabled: true,
+  zeroSlack: false, // every slacking page locks down at once (Settings → How strict is Hackie?)
   task: {
     title: '',
     keywords: [],

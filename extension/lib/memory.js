@@ -3,6 +3,8 @@
 // Stored in chrome.storage.local under "memory"; viewable and clearable in settings.
 // Pure module (no chrome.*), covered by tests/memory.test.mjs.
 
+import { searchQuery } from './search.js';
+
 export const PRIVATE_DOMAIN = '(private site)';
 
 // Sites the user habitually slacks on get warned sooner: thresholds are multiplied by `factor`.
@@ -78,7 +80,7 @@ export function recordTime(mem, { domain, category, seconds, newVisit = false, p
   mem.sites[key] = site;
   evict(mem.sites, MAX_SITES, (s) => (s.slackSec + s.workSec) / 60 + (s.flagged ? 1e6 : 0) + s.lastSeen / 864e5, key);
 
-  if (category === 'work' && !sensitive && pageKey && /^https?:/.test(url || '') && seconds > 0) {
+  if (category === 'work' && !sensitive && pageKey && /^https?:/.test(url || '') && seconds > 0 && !searchQuery(url)) {
     const page = mem.workPages[pageKey] || { url, title: '', seconds: 0, lastSeen: 0 };
     page.url = url;
     if (title) page.title = String(title).slice(0, 140);

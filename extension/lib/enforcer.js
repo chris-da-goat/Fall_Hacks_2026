@@ -51,7 +51,7 @@ Rules:
  * The per-event situation, as the user message.
  * @param {object} s
  */
-export function buildEnforcerMessage({ reason, level, levelName, site, minutes, snoozeCount, lockdownBegs, habit, overBudget, today, page, sensitive, memory, permissions }) {
+export function buildEnforcerMessage({ reason, level, levelName, site, minutes, snoozeCount, lockdownBegs, habit, overBudget, today, page, sensitive, memory, permissions, note = '' }) {
   const situation = {
     event: reason === 'back' ? 'user clicked Back to work' : reason === 'beg' ? 'user begged for more time during a lockdown' : `${levelName} (level ${level} of 3)`,
     site: sensitive ? 'Private site' : site,
@@ -62,6 +62,7 @@ export function buildEnforcerMessage({ reason, level, levelName, site, minutes, 
     overDailySlackBudget: Boolean(overBudget),
     todayMin: today ? { work: Math.round(today.work / 60), slack: Math.round(today.slack / 60) } : undefined,
     allowed: { openOrFocusTabs: permissions.mayOpen, closeSlackingTabs: permissions.mayClose },
+    ...(note ? { note } : {}),
   };
   const pageLines = sensitive
     ? [REDACTED_PAGE_NOTICE]

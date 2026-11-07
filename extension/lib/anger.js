@@ -30,11 +30,12 @@ const EXERCISE_COOLDOWN_MS = 10 * 60e3;
  * @param {string} [s.habit]         'none' | 'habit' | 'strong' for the current site.
  * @param {boolean} [s.overBudget]
  * @param {number} [s.lastEnforcedAt] When Hackie last closed tabs (ms).
+ * @param {number} [s.fakeComebacks] "Back to work" clicks followed straight by more slacking.
  * @param {number} [s.closeAfterBegs]
  * @param {number} [s.now]
  * @returns {{level: number, label: string, reasons: string[]}}
  */
-export function angerLevel({ snoozeCount = 0, lockdownBegs = 0, level = 0, habit = 'none', overBudget = false, lastEnforcedAt = 0, closeAfterBegs = 2, now = Date.now() } = {}) {
+export function angerLevel({ snoozeCount = 0, lockdownBegs = 0, level = 0, habit = 'none', overBudget = false, lastEnforcedAt = 0, fakeComebacks = 0, closeAfterBegs = 2, now = Date.now() } = {}) {
   const reasons = [];
   let anger = 0;
   const bump = (to, why) => {
@@ -47,8 +48,10 @@ export function angerLevel({ snoozeCount = 0, lockdownBegs = 0, level = 0, habit
   if (lockdownBegs >= 1) bump(2, `begged ${lockdownBegs} time${lockdownBegs > 1 ? 's' : ''} during lockdowns`);
   if (level >= 2 && (habit === 'strong' || overBudget)) bump(2, habit === 'strong' ? 'on a strong slacking habit site' : 'over the daily slack budget');
   if (lastEnforcedAt && now - lastEnforcedAt < 15 * 60e3) bump(2, 'just had to close your tabs');
+  if (fakeComebacks >= 1) bump(2, 'clicked "Back to work" and came right back');
   if (snoozeCount > 3) bump(3, 'snoozed more than 3 times');
   if (lockdownBegs >= Math.max(1, closeAfterBegs)) bump(3, 'begged too many times');
+  if (fakeComebacks >= 2) bump(3, 'faked "Back to work" more than once');
   return { level: anger, label: ANGER[anger], reasons };
 }
 
