@@ -853,6 +853,21 @@ async function main() {
     const reportKpis = await evalIn(pop, `document.getElementById('kpis').textContent`);
     check('report page renders', /Working/.test(reportKpis), reportKpis.slice(0, 80));
 
+    // Settings: forget one incident from Hackie's memory.
+    await cdp.send('Page.navigate', { url: `chrome-extension://${extId}/options/options.html` }, pop);
+    await sleep(1500);
+    const incBefore = await bg('taskwhip.memory().then((m) => m.incidents.map((i) => i.id))');
+    const shown = await evalIn(pop, `[...document.querySelectorAll('#memIncidents li.mem-inc')].length`);
+    const forgetBtns = await evalIn(pop, `[...document.querySelectorAll('#memIncidents li.mem-inc .btn.mini')].map((b) => b.textContent)`);
+    check('settings: every incident has its own Forget button', shown > 0 && forgetBtns.length === shown && forgetBtns.every((t) => t === 'Forget'), `${shown} shown, ${forgetBtns.length} buttons`);
+    await evalIn(pop, `document.querySelector('#memIncidents li.mem-inc .btn.mini').click()`);
+    await sleep(1200);
+    const incAfter = await bg('taskwhip.memory().then((m) => m.incidents.map((i) => i.id))');
+    const gone = incBefore.filter((id) => !incAfter.includes(id));
+    check('settings: Forget deletes exactly that one incident', gone.length === 1 && incAfter.length === incBefore.length - 1, `${incBefore.length} -> ${incAfter.length}`);
+    const newest = await bg('taskwhip.memory().then((m) => m.incidents.length)');
+    check('settings: the deleted incident is gone from the list too', (await evalIn(pop, `[...document.querySelectorAll('#memIncidents li.mem-inc')].length`)) === Math.min(10, newest));
+
     check('pages never logged extension-file loads ("Unsafe attempt to load URL")', extLoadLogs.length === 0, extLoadLogs.slice(0, 2).join(' | '));
     const errors = await bg('self.__errors || []');
     if (errors.length) console.log('      SW errors:', errors);

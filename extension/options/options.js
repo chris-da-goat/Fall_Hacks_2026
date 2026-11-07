@@ -412,10 +412,22 @@ async function importSettings(file) {
 
 const PRIVATE_DOMAIN = '(private site)';
 const HABIT_LABEL = { none: 'Not a habit', habit: 'Habit', strong: 'Strong habit' };
-const INCIDENT_LABEL = { lockdown: 'Lockdown', beg: 'Begged for time', enforced: 'Closed tabs', back: 'Back to work', nudge: 'Nudge', whip: 'Whip' };
+const INCIDENT_LABEL = {
+  lockdown: 'Lockdown',
+  beg: 'Begged for time',
+  enforced: 'Closed tabs',
+  back: 'Back to work',
+  nudge: 'Nudge',
+  whip: 'Whip',
+  denied: 'Request denied',
+  'fake-comeback': 'Fake comeback',
+  reply: 'Replied to Hackie',
+  relabel: 'Relabel review',
+};
 const LIST_LIMIT = 10;
 let memory = null;
 let showAllWork = false;
+let showAllIncidents = false;
 
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const siteLabel = (domain) => (domain === PRIVATE_DOMAIN || domain === 'Private site' ? 'Private site' : String(domain || ''));
@@ -576,14 +588,21 @@ function incidentRow(i) {
   const kind = INCIDENT_LABEL[i.kind] || String(i.kind || 'Event').replace(/^./, (c) => c.toUpperCase());
   const rest = [i.site ? siteLabel(i.site) : '', i.summary || ''].filter(Boolean);
   const details = [i.level ? `Level ${i.level}` : '', i.begs ? plural(i.begs, 'beg') : '', i.closed ? `closed ${plural(i.closed, 'tab')}` : '', i.opened ? `opened ${plural(i.opened, 'tab')}` : ''].filter(Boolean);
-  return el(
-    'li',
-    { className: 'mem-inc', title: details.join(' · ') },
-    el('span', { className: 'inc-time num', textContent: when(i.at) }),
-    ' · ',
-    el('b', { textContent: kind }),
-    rest.length ? ` · ${rest.join(' · ')}` : '',
+  const item = memItem(
+    [
+      el(
+        'div',
+        { className: 'mem-inc-text', title: details.join(' · ') },
+        el('span', { className: 'inc-time num', textContent: when(i.at) }),
+        ' · ',
+        el('b', { textContent: kind }),
+        rest.length ? ` · ${rest.join(' · ')}` : '',
+      ),
+    ],
+    i.id ? [forgetButton('incident', i.id, `this ${kind.toLowerCase()} incident`)] : [],
   );
+  item.classList.add('mem-inc');
+  return item;
 }
 
 function renderMemory() {
@@ -599,8 +618,11 @@ function renderMemory() {
 
   renderList('memProjects', (m.projects || []).map(projectRow), 'No projects yet. Add one so "Back to work" knows where to send you.');
   renderList('memFacts', (m.facts || []).map(factRow), 'Nothing yet. The AI adds facts as it learns about you, or add your own.');
-  const incidents = [...(m.incidents || [])].sort((a, b) => (b.at || 0) - (a.at || 0)).slice(0, LIST_LIMIT);
-  renderList('memIncidents', incidents.map(incidentRow), 'No lockdowns, begging or closed tabs yet.');
+  const incidents = [...(m.incidents || [])].sort((a, b) => (b.at || 0) - (a.at || 0));
+  renderList('memIncidents', (showAllIncidents ? incidents : incidents.slice(0, LIST_LIMIT)).map(incidentRow), 'No lockdowns, begging or closed tabs yet.');
+  const moreInc = $('memIncidentsMore');
+  moreInc.hidden = incidents.length <= LIST_LIMIT;
+  moreInc.textContent = showAllIncidents ? 'Show fewer' : `Show all ${incidents.length}`;
 
   $('memForgetAll').disabled = !m.sites?.length && !pages.length && !m.projects?.length && !m.facts?.length && !m.incidents?.length;
 }
@@ -712,6 +734,10 @@ async function init() {
   $('memForgetAll').addEventListener('click', forgetAll);
   $('memWorkMore').addEventListener('click', () => {
     showAllWork = !showAllWork;
+    renderMemory();
+  });
+  $('memIncidentsMore').addEventListener('click', () => {
+    showAllIncidents = !showAllIncidents;
     renderMemory();
   });
   $('heroHackie').addEventListener('click', () => crack($('heroHackie')));
