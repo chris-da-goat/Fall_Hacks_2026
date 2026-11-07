@@ -1,0 +1,205 @@
+/* Shared design tokens for the popup, options and report pages. */
+
+/* Inter ExtraBold (latin subset) for headings and brand text, from the team's Figma. */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url("../assets/fonts/inter-latin-800-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+  color-scheme: light dark;
+  --bg: #fbf8f4;
+  --surface: #ffffff;
+  --surface-2: #f4efe9;
+  --fg: #24201d;
+  --muted: #6f6861;
+  --faint: #a39b93;
+  --line: rgba(36, 32, 29, 0.1);
+  /* Brand orange (buttons, focus rings, links, selected states). */
+  --brand: #ff5309;
+  --brand-deep: #e04500;
+  --brand-soft: #ffe6da;
+  --brand-ink: #c2410c; /* brand-colored text on the page background (4.9:1) */
+  /* Red is only the "slacking" category color (pills, bars, charts). */
+  --tomato: #e5484d;
+  --tomato-deep: #c4271e;
+  --tomato-soft: #fde8e7;
+  --leaf: #2f9e57;
+  --leaf-soft: #e2f4e8;
+  --neutral: #9a938c;
+  --neutral-soft: #efebe6;
+  --amber: #c27803;
+  --radius: 14px;
+  --shadow: 0 1px 2px rgba(36, 32, 29, 0.05), 0 6px 18px rgba(36, 32, 29, 0.06);
+  --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --font-display: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #181514;
+    --surface: #221e1d;
+    --surface-2: #2b2625;
+    --fg: #f6efe9;
+    --muted: #b0a69e;
+    --faint: #7d746d;
+    --line: rgba(255, 255, 255, 0.1);
+    --brand: #ff5309; /* 5.6:1 on the dark background */
+    --brand-deep: #e04500;
+    --brand-soft: rgba(255, 83, 9, 0.16);
+    --brand-ink: #ff8a52; /* 7.8:1 on the dark background */
+    --tomato: #f05a5f;
+    --tomato-deep: #e5484d;
+    --tomato-soft: rgba(240, 90, 95, 0.16);
+    --leaf: #3dbb6c;
+    --leaf-soft: rgba(61, 187, 108, 0.15);
+    --neutral: #8f8780;
+    --neutral-soft: rgba(255, 255, 255, 0.07);
+    --amber: #f3a93b;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 18px rgba(0, 0, 0, 0.25);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+a {
+  color: var(--brand-ink);
+}
+
+h1,
+h2,
+h3,
+.brand,
+.kpi b {
+  font-family: var(--font-display);
+  font-weight: 800;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 10px;
+  padding: 7px 12px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  text-decoration: none;
+  color: var(--fg);
+}
+.btn:hover {
+  background: var(--surface-2);
+}
+.btn:active {
+  transform: scale(0.98);
+}
+.btn.primary {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+}
+.btn.primary:hover {
+  background: var(--brand-deep);
+  border-color: var(--brand-deep);
+}
+.btn.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+}
+.btn.ghost:hover {
+  background: var(--surface-2);
+  color: var(--fg);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.pill::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.pill.work {
+  background: var(--leaf-soft);
+  color: var(--leaf);
+}
+.pill.slack {
+  background: var(--tomato-soft);
+  color: var(--tomato-deep);
+}
+.pill.neutral,
+.pill.idle {
+  background: var(--neutral-soft);
+  color: var(--muted);
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

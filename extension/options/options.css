@@ -1,0 +1,645 @@
+body {
+  min-height: 100vh;
+}
+
+.wrap {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 32px 20px 80px;
+}
+
+.hero {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  margin-bottom: 22px;
+}
+/* Hackie draws into a square box; the left padding leaves room for the whip. */
+.hero-hackie {
+  appearance: none;
+  display: block;
+  border: 0;
+  background: none;
+  padding: 0 0 0 48px;
+  width: 168px;
+  height: 120px;
+  flex: none;
+  cursor: pointer;
+  --hk-badge-size: 26px;
+}
+.hero-hackie:focus-visible {
+  outline-offset: 6px;
+}
+.hero h1 {
+  margin: 0 0 6px;
+  font-size: 26px;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+.hero p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 15px;
+  max-width: 56ch;
+}
+
+.savebar {
+  position: sticky;
+  top: 10px;
+  z-index: 5;
+  height: 0;
+  display: flex;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+.savebar span {
+  margin-top: -2px;
+  background: var(--fg);
+  color: var(--bg);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 12.5px;
+  font-weight: 650;
+  box-shadow: var(--shadow);
+  height: fit-content;
+  animation: fade 2.2s ease forwards;
+}
+@keyframes fade {
+  0%,
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.section {
+  padding: 20px 22px 22px;
+  margin-bottom: 16px;
+}
+.section h2 {
+  margin: 0 0 4px;
+  font-size: 17px;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.hint {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 13.5px;
+  max-width: 68ch;
+}
+.badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: var(--surface-2);
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+code {
+  font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospace;
+  font-size: 0.92em;
+  background: var(--surface-2);
+  padding: 1px 5px;
+  border-radius: 5px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.field > span {
+  font-weight: 650;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.field em {
+  font-style: normal;
+  font-weight: 500;
+  color: var(--faint);
+}
+.field small,
+.foot-hint {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+input[type="text"],
+input[type="password"],
+input[type="number"],
+textarea,
+select {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 9px 11px;
+  font-size: 14px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+textarea {
+  resize: vertical;
+  font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.55;
+}
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-soft);
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.dot.work {
+  background: var(--leaf);
+}
+.dot.slack {
+  background: var(--tomato);
+}
+
+.two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.presets {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.preset {
+  appearance: none;
+  text-align: left;
+  border: 1.5px solid var(--line);
+  background: var(--bg);
+  border-radius: 14px;
+  padding: 12px 14px 14px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transition: border-color 0.15s, background 0.15s, transform 0.1s;
+}
+.preset:hover {
+  border-color: var(--faint);
+}
+.preset[aria-checked="true"] {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
+.preset b {
+  font-size: 14px;
+}
+.preset > span:last-child {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.preset-hackie {
+  display: block;
+  width: 52px;
+  height: 52px;
+  margin-bottom: 4px;
+  --hk-badge-size: 15px;
+}
+
+.thresholds {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 0 14px;
+}
+.suffix {
+  position: relative;
+}
+.suffix input {
+  padding-right: 48px;
+}
+.suffix em {
+  position: absolute;
+  right: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12.5px;
+  pointer-events: none;
+}
+.num-field > span {
+  font-weight: 600;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 8px 0;
+  cursor: pointer;
+}
+.toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+.switch {
+  flex: none;
+  width: 38px;
+  height: 22px;
+  border-radius: 99px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  position: relative;
+  margin-top: 1px;
+  transition: background 0.2s;
+}
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s;
+}
+.toggle input:checked + .switch {
+  background: var(--brand);
+  border-color: var(--brand);
+}
+.toggle input:checked + .switch::after {
+  transform: translateX(16px);
+}
+.toggle input:focus-visible + .switch {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+.t-text {
+  display: flex;
+  flex-direction: column;
+}
+.t-text b {
+  font-size: 13.5px;
+  font-weight: 650;
+}
+.t-text small {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.ai-intro p {
+  margin: 0 0 6px;
+}
+.ai-intro ul {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ai-intro b {
+  color: var(--fg);
+  font-weight: 650;
+}
+.ai-fields {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.key-row {
+  display: flex;
+  gap: 8px;
+}
+.key-row input {
+  min-width: 0;
+}
+.key-row .btn {
+  flex: none;
+  white-space: nowrap;
+}
+.model-status.err {
+  color: var(--tomato-deep);
+}
+.ai-max {
+  max-width: 240px;
+}
+.ai-max.off {
+  opacity: 0.55;
+}
+#aiBaseRow[hidden] {
+  display: none;
+}
+.field small a {
+  white-space: nowrap;
+}
+.ai-test {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.ai-result {
+  flex: 1;
+  min-width: 240px;
+  font-size: 13px;
+}
+.ai-result .err {
+  color: var(--tomato-deep);
+}
+.ai-result p {
+  margin: 4px 0 0;
+}
+.ai-result .nudge {
+  font-style: italic;
+}
+
+/* "Hackie's AI on every nudge": a sub-block at the end of the AI section. */
+.sub-block {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.section h3 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  letter-spacing: -0.005em;
+}
+/* Indented under its toggle (switch 38px + 12px gap). */
+.sub-field {
+  margin: 0 0 6px 50px;
+  max-width: 300px;
+}
+.sub-field.off {
+  opacity: 0.55;
+}
+/* "Lock Restore for [10] min after Hackie closes tabs": one sentence with the number inline. */
+.sub-field.inline-num {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  max-width: none;
+}
+.inline-num > span {
+  font-weight: 600;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.inline-num input {
+  width: 72px;
+  padding: 6px 9px;
+  text-align: right;
+}
+.sub-block .foot-hint {
+  display: block;
+  margin-top: 4px;
+}
+
+/* Hackie's memory */
+.mem-status {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.mem-status.err,
+.file-msg.err {
+  color: var(--tomato-deep);
+}
+.mem-status[hidden],
+.file-msg[hidden] {
+  display: none;
+}
+.mem {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px 22px;
+  margin: 14px 0 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.mem-wide {
+  grid-column: 1 / -1;
+}
+.mem-block {
+  min-width: 0;
+}
+.mem-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+}
+.mem-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+.mem-item:last-child {
+  border-bottom: 0;
+}
+.mem-main {
+  flex: 1;
+  min-width: 0;
+}
+.mem-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.mem-title {
+  font-size: 13.5px;
+  font-weight: 650;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+a.mem-title {
+  color: var(--fg);
+  text-decoration: none;
+}
+a.mem-title:hover {
+  color: var(--brand-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.mem-meta,
+.mem-text {
+  font-size: 12.5px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.mem-text {
+  color: var(--fg);
+  font-size: 13px;
+}
+.mem-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  font-size: 12.5px;
+}
+.mem-links a {
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mem-actions {
+  flex: none;
+  display: flex;
+  gap: 4px;
+}
+.mem-empty {
+  padding: 4px 0;
+  font-size: 12.5px;
+  color: var(--faint);
+}
+.btn.mini {
+  padding: 3px 9px;
+  font-size: 12px;
+  border-radius: 8px;
+}
+#memWorkMore {
+  margin-top: 6px;
+}
+#memWorkMore[hidden] {
+  display: none;
+}
+/* Slacking habits are slacking data, so they use the slacking color. */
+.habit-badge {
+  flex: none;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 99px;
+  letter-spacing: 0.02em;
+  background: var(--neutral-soft);
+  color: var(--muted);
+}
+.habit-badge.habit {
+  background: var(--tomato-soft);
+  color: var(--tomato-deep);
+}
+.habit-badge.strong {
+  background: var(--tomato);
+  color: #fff;
+}
+.mem-inc {
+  padding: 4px 0;
+  font-size: 12.5px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+.mem-inc:last-child {
+  border-bottom: 0;
+}
+.mem-inc b {
+  color: var(--fg);
+  font-weight: 650;
+}
+.inc-time {
+  color: var(--faint);
+}
+.mem-add {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+.mem-add input[type="text"],
+.mem-add textarea {
+  padding: 6px 9px;
+  font-size: 13px;
+}
+.mem-add textarea {
+  font-family: inherit;
+}
+.mem-add .btn {
+  align-self: flex-start;
+  padding: 5px 11px;
+}
+.mem-add-row {
+  flex-direction: row;
+}
+.mem-add-row input[type="text"] {
+  flex: 1;
+  min-width: 0;
+}
+.mem-add-row .btn {
+  align-self: auto;
+  flex: none;
+}
+
+/* Settings file */
+.file-row {
+  align-items: center;
+}
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+  margin-right: 8px;
+}
+.check input {
+  accent-color: var(--brand);
+  margin: 0;
+}
+.file-msg {
+  margin: 10px 0 0;
+  font-size: 13px;
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.btn.danger {
+  color: var(--tomato-deep);
+}
+.btn.danger:hover {
+  background: var(--tomato-soft);
+}
+
+@media (max-width: 640px) {
+  .hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .two,
+  .presets,
+  .mem {
+    grid-template-columns: 1fr;
+  }
+  .sub-field {
+    margin-left: 0;
+  }
+}

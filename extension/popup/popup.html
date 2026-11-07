@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TaskWhip</title>
+    <link rel="stylesheet" href="../shared/theme.css" />
+    <link rel="stylesheet" href="popup.css" />
+    <script src="../shared/mascot.js"></script>
+    <script type="module" src="popup.js"></script>
+  </head>
+  <body>
+    <header class="top">
+      <div class="avatar" id="avatar"></div>
+      <div class="who">
+        <div class="status" id="status">Checking in with Hackie…</div>
+        <div class="task-line">
+          <span class="task-label">Task:</span>
+          <button class="task-title" id="taskTitle" title="Edit your task">Not set yet</button>
+        </div>
+        <div class="anger" id="anger" hidden><span class="anger-pill" id="angerPill">Hackie is angry</span><span class="anger-why" id="angerWhy"></span></div>
+      </div>
+      <button class="icon-btn" id="openOptions" title="Settings" aria-label="Settings">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.85 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+        </svg>
+      </button>
+    </header>
+
+    <main>
+      <section class="card now" id="nowCard">
+        <div class="now-head">
+          <div class="now-text">
+            <div class="now-domain" id="nowDomain">Nothing tracked right now</div>
+            <div class="now-title" id="nowTitle"></div>
+          </div>
+          <span class="pill idle" id="nowPill">Idle</span>
+        </div>
+        <div class="streak" id="streak" hidden></div>
+        <div class="snoozes" id="snoozeLine" hidden><span id="snoozeText"></span><span class="begs" id="begText" hidden></span> · <button class="linkish" id="resetMood" type="button">Reset mood</button></div>
+        <p class="reason" id="nowReason"></p>
+        <div class="dbg" id="dbgLine" hidden><span class="dbg-badge" id="dbgBadge"></span><span id="dbgWhy"></span></div>
+        <div class="classify" id="classify" hidden>
+          <div class="seg" role="group" aria-label="Mark as">
+            <button data-cat="work">Work</button>
+            <button data-cat="slack">Slacking</button>
+            <button data-cat="neutral">Neutral</button>
+          </div>
+          <div class="scope-row">
+            <span class="scope-text"><span id="scopeLabel">for this whole site</span> · <button class="linkish" id="scopeToggle">just this page</button></span>
+            <button class="linkish" id="seesToggle" aria-expanded="false" aria-controls="seesList">What Hackie read</button>
+          </div>
+          <dl class="sees" id="seesList" hidden></dl>
+        </div>
+      </section>
+
+      <nav class="tabs" role="tablist" aria-label="Stats and chat">
+        <button role="tab" id="tab-today" data-tab="today" aria-selected="true" aria-controls="panel-today">Today</button>
+        <button role="tab" id="tab-sites" data-tab="sites" aria-selected="false" aria-controls="panel-sites" title="Top sites today">Top sites</button>
+        <button role="tab" id="tab-week" data-tab="week" aria-selected="false" aria-controls="panel-week" title="Last 7 days">7 days</button>
+        <button role="tab" id="tab-ask" data-tab="ask" aria-selected="false" aria-controls="panel-ask" title="Chat with Hackie">Ask Hackie</button>
+      </nav>
+
+      <section class="card panel" id="panel-today" role="tabpanel" aria-labelledby="tab-today">
+        <div class="kpis">
+          <div class="kpi work"><span>Working</span><b class="num" id="kWork">0m</b></div>
+          <div class="kpi slack"><span>Slacking</span><b class="num" id="kSlack">0m</b></div>
+          <div class="kpi focus"><span>Focus</span><b class="num" id="kFocus">–</b></div>
+          <div class="kpi breaks" title="Exercise breaks taken today"><span>Breaks</span><b class="num" id="kBreaks">0</b></div>
+        </div>
+        <div class="budget" id="budget">
+          <div class="budget-row"><span>Daily slack budget</span><span class="num" id="budgetText"></span></div>
+          <div class="bar"><div class="fill" id="budgetFill"></div></div>
+        </div>
+        <div class="events" id="events"></div>
+        <div class="nudge-row">
+          <label for="nudgeInput">Nudge me after</label>
+          <input id="nudgeInput" type="number" min="0" step="0.5" inputmode="decimal" aria-describedby="nudgeMsg" />
+          <span>min of slacking</span>
+          <span class="nudge-msg" id="nudgeMsg" role="status"></span>
+        </div>
+      </section>
+
+      <section class="card panel" id="panel-sites" role="tabpanel" aria-labelledby="tab-sites" hidden>
+        <ul class="sites" id="sites"></ul>
+      </section>
+
+      <section class="card panel" id="panel-week" role="tabpanel" aria-labelledby="tab-week" hidden>
+        <div class="week" id="week"></div>
+        <div class="legend"><span class="sw work"></span>Work <span class="sw slack"></span>Slacking</div>
+      </section>
+
+      <section class="card panel ask-panel" id="panel-ask" role="tabpanel" aria-labelledby="tab-ask" hidden>
+        <div class="ask-head" id="askHead">
+          <span class="ask-meta" id="askMeta">Hackie can read your stats, settings and debug log.</span>
+          <button class="linkish" id="askClear" type="button" hidden>Clear</button>
+        </div>
+        <div class="ask-setup" id="askSetup" hidden>
+          <span>Add an AI provider key in settings to chat with Hackie.</span>
+          <button class="btn" id="askSetupBtn" type="button">Open settings</button>
+        </div>
+        <div class="chat-log" id="chatLog" role="log" aria-label="Conversation with Hackie" tabindex="0" hidden></div>
+        <form class="ask-form" id="askForm" autocomplete="off">
+          <input id="askInput" type="text" maxlength="500" placeholder="Ask Hackie about your time…" aria-label="Question for Hackie" />
+          <button class="btn primary" id="askBtn" type="submit">Ask</button>
+        </form>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <p class="toast" id="testMsg" role="status" hidden></p>
+      <div class="deciding" id="deciding" role="status" hidden>
+        <span class="deciding-hackie" id="decidingHackie"></span>
+        <span class="deciding-text"><b>Hackie is deciding…</b><span class="deciding-what" id="decidingWhat"></span></span>
+      </div>
+      <div class="verdict" id="verdict" role="alert" hidden>
+        <span class="verdict-hackie" id="verdictHackie"></span>
+        <div class="verdict-body">
+          <b class="verdict-title" id="verdictTitle">Refused</b>
+          <p class="verdict-msg" id="verdictMsg"></p>
+        </div>
+        <button class="verdict-x" id="verdictClose" type="button" aria-label="Close Hackie's message" title="Close">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+        </button>
+        <span class="verdict-timer" id="verdictTimer" aria-hidden="true"></span>
+      </div>
+      <div class="restore" id="restoreLine" role="status" hidden><span id="restoreText"></span><span id="restoreAct"> · <button class="linkish" id="restoreBtn" type="button" title="Reopen the tabs Hackie closed">Restore</button></span></div>
+      <div class="foot-row" id="footMain">
+        <button class="btn" id="breakBtn">Take a 15-min break</button>
+        <button class="btn ghost" id="trackBtn">Pause</button>
+        <button class="btn ghost" id="reportBtn">Report</button>
+        <button class="btn ghost" id="testBtn" aria-expanded="false" aria-controls="testRow" title="Try Hackie's nudge, whip and lockdown on the current tab">Test</button>
+      </div>
+      <div class="foot-row test-row" id="testRow" role="group" aria-label="Test Hackie on the current tab" hidden>
+        <button class="btn" id="testNudge" data-level="1">Nudge</button>
+        <button class="btn" id="testWhip" data-level="2">Whip</button>
+        <button class="btn" id="testLockdown" data-level="3">Lockdown</button>
+        <button class="btn ghost" id="testDone">Done</button>
+      </div>
+    </footer>
+  </body>
+</html>
