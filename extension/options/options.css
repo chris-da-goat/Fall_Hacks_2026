@@ -630,10 +630,12 @@ a.mem-title:hover {
   font-size: 12.5px;
   color: var(--muted);
 }
-#memWorkMore {
+#memWorkMore,
+#memIncidentsMore {
   margin-top: 6px;
 }
-#memWorkMore[hidden] {
+#memWorkMore[hidden],
+#memIncidentsMore[hidden] {
   display: none;
 }
 /* Slacking habits are slacking data, so they use the slacking color. */
@@ -664,6 +666,11 @@ a.mem-title:hover {
 }
 .mem-inc:last-child {
   border-bottom: 0;
+}
+.mem-inc-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .mem-inc b {
   color: var(--fg);
