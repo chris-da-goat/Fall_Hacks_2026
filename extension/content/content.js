@@ -20,6 +20,23 @@
     { html: () => '', moodForLevel: (l) => ['stern', 'worried', 'angry', 'furious'][l] || 'stern', IDLE_MOODS: ['happy'] });
   const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
+  // Hackie's art comes from the service worker as data: URLs (this page never loads extension
+  // files). Draw him once it has arrived; one retry if the worker was still waking up.
+  // Everything that draws Hackie (walker, lockdown, debug console) waits for artLoaded.
+  let artReady = Hackie.hasArt ? Hackie.hasArt() : true;
+  const getArt = () => send({ type: 'hackie:art' }).then((art) => (art && !art.error ? art : null));
+  const artLoaded = artReady
+    ? Promise.resolve()
+    : getArt()
+        .then((art) => art || new Promise((r) => setTimeout(r, 1000)).then(getArt))
+        .then((art) => {
+          if (art) Hackie.useArt(art);
+          else console.warn("[TaskWhip] Could not load Hackie's art. Reload the extension at chrome://extensions.");
+          artReady = true;
+          faceKey = '';
+          render();
+        });
+
   function alive() {
     try {
       return Boolean(runtime?.id);
@@ -143,7 +160,7 @@
   // UI: Hackie walks the edges of the screen on slacking sites (the team's patrol), with a
   // timer pill, nudge/whip bubbles, a click-for-report panel, and the full-screen lockdown.
 
-  const HK = 96; // Hackie's box: the 42x48 sprite at exactly 2x
+  const HK = 100; // Hackie's box: the team's 50x48 sprite crop at exactly 2x (crisp pixels)
   const EDGE = 8;
   const SPEED = 20; // px per second along the edge (slow stroll)
   const HOVER_RADIUS = 130; // mouse this close -> Hackie stops and gets curious
@@ -255,7 +272,7 @@ button { font: inherit; }
 }
 .block[hidden] { display: none; }
 .block .panel { width: min(460px, 100%); text-align: center; padding: 26px 28px 20px; border-radius: 24px; animation: pop-in .42s cubic-bezier(.2,1.4,.4,1); }
-.block .big { width: 150px; height: 150px; margin: -112px auto 6px; --hk-badge-size: 30px; }
+.block .big { width: 150px; height: 150px; /* 3x the 50px-wide crop */ margin: -112px auto 6px; --hk-badge-size: 30px; }
 .block .tag { padding: 0; }
 .block h2 { font-size: 26px; line-height: 1.15; margin: 0 0 8px; font-weight: 800; text-wrap: balance; }
 .block .msg { font-size: 16px; color: var(--muted); margin: 0; }
@@ -441,6 +458,7 @@ button { font: inherit; }
   // ---- render ---------------------------------------------------------------
 
   function render() {
+    if (!artReady) return; // drawn as soon as the art arrives
     // Don't build anything on pages where Hackie has nothing to do.
     if (!ui.host?.isConnected && !(nag || cheer.until > Date.now() || onSlack())) return;
     ensureUI();
@@ -607,12 +625,16 @@ button { font: inherit; }
 
   // ---- walking along the screen edges (the team's patrol) ---------------------
 
+  // The visible area, without the page's scrollbars (innerWidth includes them).
+  const viewW = () => document.documentElement.clientWidth || innerWidth;
+  const viewH = () => Math.min(innerHeight, document.documentElement.clientHeight || innerHeight);
+
   function bounds() {
     return {
       minX: EDGE,
       minY: EDGE,
-      maxX: Math.max(EDGE + 1, innerWidth - HK - EDGE),
-      maxY: Math.max(EDGE + 1, innerHeight - HK - EDGE),
+      maxX: Math.max(EDGE + 1, viewW() - HK - EDGE),
+      maxY: Math.max(EDGE + 1, viewH() - HK - EDGE),
     };
   }
 
@@ -641,8 +663,8 @@ button { font: inherit; }
     if (!el.firstChild) return;
     const w = el.offsetWidth;
     const h = el.offsetHeight;
-    const onRight = pos.x + HK + SIDE_GAP + w <= innerWidth - EDGE;
-    const anchorBottom = pos.y + h > innerHeight - EDGE;
+    const onRight = pos.x + HK + SIDE_GAP + w <= viewW() - EDGE;
+    const anchorBottom = pos.y + h > viewH() - EDGE;
     const key = `${panelOpen}${onRight}${anchorBottom}${w > 0}`;
     if (key === placeKey) return;
     placeKey = key;
@@ -666,6 +688,7 @@ button { font: inherit; }
       hovering = near;
       render();
     }
+    if (hovering && faceKey.startsWith('curious:')) Hackie.lookAt?.(ui.hk, mouse.x, mouse.y); // eyes follow the mouse
     // Walk, or ease to a stop when something wants Hackie's attention.
     const still = Boolean(nag) || panelOpen || hovering || now < pauseUntil || reducedMotion;
     speedFactor += ((still ? 0 : 1) - speedFactor) * Math.min(1, dt * 6);
@@ -1328,6 +1351,11 @@ form button:disabled { opacity: .5; cursor: progress; }
   }
 
   function onMessage(msg, _sender, sendResponse) {
+    if (!artReady && msg?.type !== 'pomo:status') {
+      artLoaded.then(() => onMessage(msg, _sender, () => {})); // lockdowns, nudges, debug: once Hackie can be drawn
+      sendResponse({ ok: true });
+      return;
+    }
     if (msg?.type === 'pomo:status') handleStatus(msg.status);
     else if (msg?.type === 'pomo:fire') handleFire(msg);
     else if (msg?.type === 'pomo:debug') renderDebug(msg.debug);
@@ -1336,7 +1364,7 @@ form button:disabled { opacity: .5; cursor: progress; }
     sendResponse({ ok: true });
   }
   runtime.onMessage.addListener(onMessage);
-  send({ type: 'debug:get' }).then((payload) => {
+  artLoaded.then(() => send({ type: 'debug:get' })).then((payload) => {
     if (payload?.enabled) renderDebug(payload);
   });
 

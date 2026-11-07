@@ -1,19 +1,35 @@
 # TaskWhip
 
-A Chrome extension starring **Hackie**, the team's FH26 pixel robot (`extension/assets/hackie.gif`): part drill sergeant, part worried parent. Hackie reads the page you're on and tracks how long you spend on work vs. slacking sites. On slacking sites it strolls along the edges of your screen, nags you to get back to your task or get up and move, and gets steadily less polite the longer you drift:
+A Chrome extension starring **Hackie**, the team's FH26 pixel robot (all of his art lives in [`extension/assets/`](extension/assets)): part drill sergeant, part worried parent. Hackie reads the page you're on and tracks how long you spend on work vs. slacking sites. On slacking sites it strolls along the edges of your screen, nags you to get back to your task or get up and move, and gets steadily less polite the longer you drift:
 
 | Slack streak | What Hackie does |
 | --- | --- |
-| any | Walks the screen edges with a live slack timer, idle expressions (😊 😉 😮 💤 🤪 😎 💕), and stops to look curious (❓) when your mouse comes near |
+| any | Walks the screen edges with a live slack timer and idle expressions (😊 😉 😮 💤 🤪 😎 💕). When your mouse comes near he stops and switches to the team's hover face, whose eyes follow the mouse |
 | 5 min | **Nudge**: a speech bubble ("It looks like you're watching YouTube…") with *Back to work*, *I did it!* (an exercise break such as 10 squats), *N more min*, *It's for my task* |
 | 10 min | **Whip**: whip crack (animation + synthesized sound), screen shake, red flash, video paused |
 | 20 min | **Lockdown**: full-screen block. *Back to work* is instant; the exercise and "beg for more time" buttons unlock after 20 s |
 
-Each snooze buys less time (5 → 3 → 2 min), and Hackie goes from worried to a full-on "angry mom" after 4 snoozes in a row. An exercise break or getting back to work calms Hackie down. Click Hackie (or its timer) for **Hackie's report**: slack streak, next warning, today's work and slacking, exercise breaks, mood, snoozes in a row, *Reset mood*, and a demo slider that fakes the slack streak.
+Each snooze buys less time (5 → 3 → 2 min), and Hackie goes from worried to a full-on "angry mom" after 4 snoozes in a row. Whenever he's angry or furious he turns orange and red and flips through the team's six angry pictures, steam puffs and all. An exercise break or getting back to work calms Hackie down. Click Hackie (or its timer) for **Hackie's report**: slack streak, next warning, today's work and slacking, exercise breaks, mood, snoozes in a row, *Reset mood*, and a demo slider that fakes the slack streak.
 
 Thresholds, sounds, and effects are all configurable (Gentle / Normal / Drill sergeant presets). Spend a couple of minutes on work and the streak resets. Blow through your daily slack budget and every warning escalates a level.
 
-> Local prototype. Not published anywhere yet.
+> Hackathon prototype.
+
+### Hackie's art: one source
+
+All of Hackie's art lives in **`extension/assets/`**, and nothing else in the repo is used:
+
+| File | Used for |
+| --- | --- |
+| `hackie.gif` | Idle Hackie (walker, popup, report), and the toolbar icons (`npm run icons`) |
+| `sprites/angry-1.png` … `angry-6.png` | Angry and furious Hackie, one picture every 380 ms |
+| `sprites/hover-base.png`, `hover-eye-left.png`, `hover-eye-right.png` | The hover face; the eyes slide up to 2 sprite pixels toward your mouse |
+| `design/FH2026DESIGN-1.png`, `FH2026DESIGN-2.png` | The team's design drafts of those two faces (reference only) |
+| `fonts/inter-latin-800-normal.woff2` | Inter ExtraBold for the popup, settings and report |
+
+These are the team's files from `hackie V3.zip`. The loose copies that used to sit at the repo root were byte-for-byte duplicates and have been removed. To add or change art, put it in `extension/assets/` and list it in `ART` at the top of [`extension/shared/mascot.js`](extension/shared/mascot.js). Everything that draws Hackie reads that list, and so does the service worker.
+
+Web pages never load files from the extension. The service worker reads the art once and hands it to pages as `data:` URLs. YouTube's page logs every `chrome-extension://` load as *"Unsafe attempt to load URL … Domains, protocols and ports must match"*, and with no `web_accessible_resources`, sites also can't probe for the extension.
 
 ### Where this came from
 
@@ -76,6 +92,14 @@ The harness lives in `lib/agent.js` (tool-calling loop) and `lib/agent-tools.js`
 | `get_debug_log` | Recent tracking decisions, each with a plain-English "why" |
 | `mark_site` | Reclassifies a site (only when you ask) |
 | `take_break` | Starts or ends a break (only when you ask) |
+
+**Memory and mood.** Every question comes with all of Hackie's memory in the instructions: every site with its minutes and habit level, the work pages you use, your projects, facts and incidents. If it gets very large, the oldest and least-used entries are left out first. Ask Hackie also gets his mood right now (calm, annoyed, angry or furious; see "Angry Hackie" below) and why: snoozes, begging, the page you're on, today's minutes. The mood sets the tone:
+
+- calm Hackie teases and praises real work;
+- angry Hackie talks in clipped sentences with a CAPS word;
+- furious Hackie throws your habits and deadlines back at you and orders you back to work.
+
+He stays accurate in every mood. With memory turned off, he says he doesn't remember past days.
 
 The loop speaks both Anthropic's Messages API (`tool_use`/`tool_result`) and OpenAI-style Chat Completions (`tool_calls`/`role: "tool"`). If a server can't do tool calls, Hackie answers from a snapshot of the read-only tools instead. The system prompt is `buildAgentSystem()` in `lib/agent.js`.
 
@@ -179,8 +203,8 @@ extension/
   manifest.json            MV3 manifest
   background.js            service worker: time banking, classification, escalation, messaging
   content/content.js       page reader + walking Hackie UI (shadow DOM), report panel, whip, lockdown, debug console
-  shared/mascot.js         draws Hackie from assets/hackie.gif (moods, emoji badge, whip)
-  assets/                  hackie.gif (team art), Inter ExtraBold font
+  shared/mascot.js         draws Hackie from assets/ (the ART list): idle GIF, angry frames, hover eyes, emoji badges, whip
+  assets/                  all of Hackie's art (the one source): hackie.gif, sprites/, design/, Inter ExtraBold font
   shared/theme.css         design tokens (light + dark)
   popup/                   today's report, quick classify, break/pause
   options/                 task, site lists, strictness, effects, AI judge, sensitive sites, data export
@@ -199,13 +223,13 @@ tools/                     icons from hackie.gif (gif.mjs decoder), sensitive-li
 npm test
 ```
 
-Unit tests cover the classifier, stats, AI adapters (mocked `fetch`), sensitive-site matching, the agent and its tools, memory, the per-event AI, and the anger rules and arbiter. No install needed (Node 20+).
+Unit tests cover the classifier, stats, AI adapters (mocked `fetch`), sensitive-site matching, the agent and its tools, memory, the per-event AI, the anger rules and arbiter, and Ask Hackie's memory and mood. No install needed (Node 20+).
 
 ```bash
 npm run e2e
 ```
 
-The end-to-end test launches Chrome headless with a **throwaway profile**, loads the extension via the DevTools protocol, serves fake video/work/proxy pages on `*.localhost`, and walks through nudge → whip → arrest → back to work. It also covers the AI judge, Ask Hackie, the per-event AI closing tabs after begging, and angry Hackie refusing a snooze, all against a fake OpenAI-compatible server. It also covers the sensitive-site redaction and saves screenshots. Set `CHROME_PATH` if Chrome isn't in the default location, `E2E_OUT` for the screenshot folder, or `HEADLESS=0` to watch.
+The end-to-end test launches Chrome headless with a **throwaway profile**, loads the extension via the DevTools protocol, serves fake video/work/proxy pages on `*.localhost`, and walks through nudge → whip → arrest → back to work. It also covers the AI judge, Ask Hackie, the per-event AI closing tabs after begging, and angry Hackie refusing a snooze, all against a fake OpenAI-compatible server. It checks that Hackie's art reaches pages only as `data:` URLs, the angry frames and hover eyes, and that Ask Hackie gets memory and mood. It also covers the sensitive-site redaction and saves screenshots. Set `CHROME_PATH` if Chrome isn't in the default location, `E2E_OUT` for the screenshot folder, or `HEADLESS=0` to watch.
 
 ```bash
 AI_PROVIDER=deepseek AI_KEY=sk-... node tests/live-ai.mjs
