@@ -67,6 +67,8 @@ npm run zip                                          # dist/hackie-extension-<ve
 
 The zip unpacks to a `hackie/` folder; load that folder unpacked. On macOS, double-click the zip in Finder to unpack it.
 
+The repo root's `extension.zip` is a ready-made copy built this way (Hackie 0.2.0). After changing the extension, refresh it: run `npm run zip`, then copy `dist/hackie-extension-<version>.zip` over `extension.zip`.
+
 ## How it decides what's work
 
 In priority order:
