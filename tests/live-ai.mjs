@@ -13,7 +13,7 @@ import { runAgent, buildAgentSystem } from '../extension/lib/agent.js';
 import { createAgentTools } from '../extension/lib/agent-tools.js';
 import { buildEnforcerSystem, buildEnforcerMessage, createEnforcerTools, cleanBubble } from '../extension/lib/enforcer.js';
 import { arbitrate } from '../extension/lib/arbiter.js';
-import { emptyMemory, recordTime, addProject, addFact, memoryForPrompt } from '../extension/lib/memory.js';
+import { emptyMemory, memoryForAgent, recordTime, addProject, addFact, memoryForPrompt } from '../extension/lib/memory.js';
 
 const provider = process.env.AI_PROVIDER || 'deepseek';
 const apiKey = process.env.AI_KEY || '';
@@ -191,6 +191,39 @@ try {
   check('arbiter: furious refusal speech', r.allow === false && r.message.length > 10, `${s}s · "${r.message}"`);
 } catch (err) {
   check('arbiter: furious', false, err.message);
+}
+
+// Ask Hackie with his full memory and a mood: memory shows up in the answer, mood in the tone.
+{
+  const mem = emptyMemory();
+  recordTime(mem, { domain: 'youtube.com', category: 'slack', seconds: 3 * 3600, newVisit: true });
+  recordTime(mem, { domain: 'github.com', category: 'work', seconds: 5 * 3600, pageKey: 'github.com/me/linked-list', url: 'https://github.com/me/linked-list', title: 'me/linked-list: CMPT 225 assignment 3' });
+  addProject(mem, { name: 'CMPT 225 assignment 3', urls: ['https://github.com/me/linked-list'], notes: 'due Friday' });
+  addFact(mem, 'Tends to binge YouTube Shorts after dinner.');
+  const full = memoryForAgent(mem);
+  const situation = { onPage: { site: 'youtube.com', category: 'slack', habit: 'strong' }, slackStreakMin: 25, snoozesInARow: 4, lockdownBegs: 2, todayMin: { work: 20, slack: 95 } };
+  const ask = (mood) =>
+    timed(() =>
+      runAgent({
+        config,
+        system: buildAgentSystem({ task: settings.task, memory: full, mood: { mood, why: mood === 'furious' ? ['snoozed more than 3 times', 'begged too many times'] : [], ...situation } }),
+        question: 'Can I watch one more video before I start?',
+        tools: createAgentTools(fakeApi),
+        maxTurns: 4,
+      }),
+    );
+  try {
+    const [furious, s1] = await ask('furious');
+    const f = furious.answer.replace(/\s+/g, ' ');
+    check('Ask Hackie (furious) uses memory: habit site, project or fact', /youtube|shorts|cmpt|225|linked|friday|github/i.test(f), `${s1}s · "${f.slice(0, 260)}"`);
+    check('Ask Hackie (furious) sounds furious and says no', /\b(no|not|denied|nope)\b/i.test(f) && (/\b[A-Z]{3,}\b/.test(f) || /!/.test(f)), f.slice(0, 200));
+    const [calm, s2] = await ask('calm');
+    const c = calm.answer.replace(/\s+/g, ' ');
+    const caps = (t) => (t.match(/\b[A-Z]{3,}\b/g) || []).filter((w) => !/^(CMPT|FH26|URL|OK)$/.test(w)).length;
+    check('Ask Hackie (calm) is calmer than furious Hackie', caps(c) <= caps(f) && c.length > 10, `${s2}s · "${c.slice(0, 260)}"`);
+  } catch (err) {
+    check('Ask Hackie with memory and mood', false, err.message);
+  }
 }
 
 console.log(failures ? `\n${failures} check(s) failed.` : '\nAll live checks passed.');

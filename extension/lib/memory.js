@@ -215,3 +215,42 @@ export function memoryForPrompt(mem) {
     recentIncidents: mem.incidents.slice(-8).map(({ id, at, ...rest }) => ({ when: new Date(at).toLocaleString(), ...rest })),
   };
 }
+
+/**
+ * Everything Hackie remembers, for Ask Hackie's instructions: all sites (minutes per category,
+ * visits, habit), work pages, projects, facts and incidents. Sensitive sites stay "Private site".
+ * If it gets big, the oldest and least-used entries are left out first (counted in `omitted`).
+ */
+export function memoryForAgent(mem, { now = Date.now(), maxChars = 9000 } = {}) {
+  const min = (s) => Math.round((s || 0) / 60);
+  const date = (t) => (t ? new Date(t).toLocaleDateString() : undefined);
+  const out = {
+    sites: Object.entries(mem.sites)
+      .map(([domain, s]) => ({
+        site: domain === PRIVATE_DOMAIN ? 'Private site' : domain,
+        slackMin: min(s.slackSec),
+        workMin: min(s.workSec),
+        neutralMin: min(s.neutralSec),
+        visits: s.visits || 0,
+        habit: habitFor(mem, domain).level,
+        ...(s.flagged ? { flagged: true } : {}),
+        lastSeen: date(s.lastSeen),
+      }))
+      .sort((a, b) => b.slackMin + b.workMin + b.neutralMin - (a.slackMin + a.workMin + a.neutralMin) || b.visits - a.visits),
+    workPages: topWorkPages(mem, MAX_WORK_PAGES, now).map((p) => ({ title: p.title, url: p.url, workMin: min(p.seconds), lastSeen: date(p.lastSeen) })),
+    projects: [...mem.projects].sort((a, b) => (b.at || 0) - (a.at || 0)).map((p) => ({ name: p.name, urls: p.urls, ...(p.notes ? { notes: p.notes } : {}) })),
+    facts: [...mem.facts].sort((a, b) => (b.at || 0) - (a.at || 0)).map((f) => ({ text: f.text, learned: date(f.at) })),
+    incidents: [...mem.incidents].sort((a, b) => (b.at || 0) - (a.at || 0)).map(({ id, at, ...rest }) => ({ when: new Date(at).toLocaleString(), ...rest })),
+  };
+  // Over budget: drop the tail (least used / oldest) of each list in stages, projects last.
+  const stages = [['incidents', 15], ['sites', 30], ['workPages', 15], ['incidents', 5], ['sites', 12], ['workPages', 6], ['facts', 15], ['sites', 5], ['incidents', 0], ['workPages', 0], ['facts', 0], ['sites', 0], ['projects', 0]];
+  const omitted = {};
+  for (const [key, floor] of stages) {
+    while (out[key].length > floor && JSON.stringify(out).length > maxChars) {
+      out[key].pop();
+      omitted[key] = (omitted[key] || 0) + 1;
+    }
+  }
+  if (Object.keys(omitted).length) out.omitted = omitted;
+  return out;
+}

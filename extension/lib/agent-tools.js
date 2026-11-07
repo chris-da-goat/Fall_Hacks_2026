@@ -66,7 +66,7 @@ export function createAgentTools(api) {
     {
       name: 'get_memory',
       description:
-        "What Hackie remembers about the user across days: their habitual slacking sites (with minutes and habit level), the work pages they actually use, their projects, facts learned about them, and recent incidents (lockdowns, begging, tabs Hackie closed).",
+        "Hackie's memory of the user across days, live: habitual slacking sites (minutes, habit level), the work pages they actually use, projects, facts, and incidents (lockdowns, begging, tabs Hackie closed). Your instructions already include it; call this after remember, or for details left out there.",
       input_schema: NO_INPUT,
       readOnly: true,
       run: () => api.memory(),
