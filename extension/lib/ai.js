@@ -66,12 +66,25 @@ export function buildUserMessage(task, page) {
       .join('\n');
   }
   const search = searchQuery(page.url);
+  if (search) {
+    // A search is judged by its phrase alone: results pages can show stale or unrelated text.
+    return [
+      ...taskLines,
+      '',
+      '<page>',
+      `A ${search.engine} search results page.`,
+      `Search query: "${search.query}"`,
+      '</page>',
+      'Judge only what the user searched for.',
+    ]
+      .filter((l) => l !== '')
+      .join('\n');
+  }
   const lines = [
     ...taskLines,
     '',
     '<page>',
     `URL: ${page.url}`,
-    search ? `Search query: "${search.query}" (a ${search.engine} search results page: judge the query)` : '',
     `Title: ${page.title || ''}`,
     page.videoTitle ? `Video title: ${page.videoTitle}` : '',
     page.channel ? `Channel: ${page.channel}` : '',

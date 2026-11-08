@@ -153,3 +153,21 @@ test("Yahoo's ;_ylt= tracking tokens don't change the search's key", async () =>
   assert.equal(pageKey('https://search.yahoo.com/search;_ylt=AwrE1;_ylc=X1MD?p=weather'), 'search.yahoo.com/search?q=weather');
   assert.equal(pageKey('https://search.yahoo.com/search;_ylt=Zz9?p=Weather'), pageKey('https://search.yahoo.com/search?p=weather'));
 });
+
+test('search verdicts are keyed by the phrase: reused across engines, new phrases judged anew', async () => {
+  const { searchVerdictKey, searchSnapshot } = await import('../extension/lib/search.js');
+  const { verdictKey, pageKey } = await import('../extension/lib/classify.js');
+  const g = 'https://www.google.com/search?q=C%2B%2B+docs&sca_esv=1';
+  const b = 'https://www.bing.com/search?q=c%2B%2B++docs&form=QBLH';
+  assert.equal(searchVerdictKey(g), 'search:c++ docs');
+  assert.equal(searchVerdictKey(g), searchVerdictKey(b), 'an already judged phrase is reused on another engine');
+  assert.notEqual(searchVerdictKey(g), searchVerdictKey('https://www.google.com/search?q=minecraft+speedrun'), 'a new phrase gets its own verdict');
+  assert.equal(searchVerdictKey('https://www.google.com/'), null);
+  assert.equal(searchVerdictKey('https://github.com/search?q=x'), null);
+  // verdictKey: the phrase for searches, the page for everything else
+  assert.equal(verdictKey(g), 'search:c++ docs');
+  assert.equal(verdictKey('https://www.youtube.com/watch?v=abc'), pageKey('https://www.youtube.com/watch?v=abc'));
+  // what the judge sees: the phrase and the engine, nothing from the page
+  assert.deepEqual(searchSnapshot(g), { url: g, title: '"c++ docs" - Google search', search: { engine: 'Google', query: 'c++ docs', param: 'q' } });
+  assert.equal(searchSnapshot('https://example.com/'), null);
+});

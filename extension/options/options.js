@@ -2,6 +2,8 @@ import { mergeSettings, PRESETS, AI_PROVIDERS, aiConfig, splitList, DEFAULT_SETT
 import { SENSITIVE_DOMAINS } from '../data/sensitive-sites.js';
 import { formatDuration } from '../lib/stats.js';
 
+document.documentElement.dataset.hackieReady = '1'; // all imports loaded (see shared/boot-check.js)
+
 const Hackie = globalThis.Hackie;
 const $ = (id) => document.getElementById(id);
 const send = (type, payload = {}) => chrome.runtime.sendMessage({ type, ...payload });

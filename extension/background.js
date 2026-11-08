@@ -11,7 +11,8 @@
 
 import './shared/mascot.js'; // globalThis.Hackie.ART_FILES: the list of Hackie's art in assets/
 import { mergeSettings, aiConfig, aiReady, aiConfigured } from './lib/defaults.js';
-import { classifyPage, pageKey, parseRule, PRIVATE_KEY } from './lib/classify.js';
+import { classifyPage, pageKey, verdictKey, parseRule, PRIVATE_KEY } from './lib/classify.js';
+import { searchSnapshot } from './lib/search.js';
 import { findSensitive, PRIVATE_DOMAIN } from './lib/sensitive.js';
 import { dayKey, lastNDayKeys, normalizeDay, addTime, topDomains, focusScore } from './lib/stats.js';
 import { pickLine, LEVEL_NAME, pickExercise, snoozeMinutes, snoozeRemark, moodForSnoozes, lockdownStaysLine, fakeComebackLine, zeroSlackLine } from './lib/lines.js';
@@ -495,20 +496,22 @@ async function refresh(trigger = 'tick') {
       playing = Boolean(tab.audible || ctx?.mediaPlaying);
       const present = active.focused && (active.idle === 'active' || (active.idle === 'idle' && playing));
       if (present) {
-        const key = sensitive ? PRIVATE_KEY : pageKey(url);
+        const key = sensitive ? PRIVATE_KEY : verdictKey(url);
         const aiVerdict = aiReady(settings) ? await cachedVerdict(settings, key) : null;
         const verdict = classifyPage({ url, ctx: sensitive ? null : ctx, settings, overrides, aiVerdict, sensitive });
         current = {
           ...verdict,
+          aiKey: key,
           tabId: tab.id,
           windowId: tab.windowId,
           url,
           title: sensitive ? '' : ctx?.title || (tab.pendingUrl ? '' : tab.title) || '',
           since: now,
         };
-        if (verdict.needsAI && (ctx || sensitive) && aiReady(settings)) {
-          // Sensitive pages only ever reach the AI as a fixed "content blocked" notice.
-          askAI(settings, key, sensitive ? { redacted: true } : ctx); // fire-and-forget; triggers its own refresh
+        const snapshot = sensitive ? { redacted: true } : verdict.search ? searchSnapshot(url) : ctx;
+        if (verdict.needsAI && snapshot && aiReady(settings)) {
+          // Sensitive pages only ever reach the AI as a fixed "content blocked" notice; searches as their phrase.
+          askAI(settings, key, snapshot); // fire-and-forget; triggers its own refresh
         }
       }
     }
@@ -560,7 +563,7 @@ async function refresh(trigger = 'tick') {
   let zeroLock = false;
   if (settings.zeroSlack && current?.category === 'slack' && !decision.snoozed) {
     // Wait for the AI's verdict on this page if it's still coming (a lecture on YouTube isn't slacking).
-    const pendingAI = current.needsAI && !current.sensitive && current.source !== 'ai' && aiInflight.has(`${taskSignature(settings)}|${current.pageKey}`);
+    const pendingAI = current.needsAI && !current.sensitive && current.source !== 'ai' && aiInflight.has(`${taskSignature(settings)}|${current.aiKey || current.pageKey}`);
     if (!pendingAI) {
       zeroLock = true;
       decision.level = 3;
@@ -1255,7 +1258,7 @@ async function classifyTab(tab, settings, overrides) {
   const rawCtx = await loadCtx(tab.id);
   const ctx = rawCtx && pageKey(rawCtx.url) === pageKey(url) ? rawCtx : null;
   const sensitive = findSensitive({ url, ctx, list: settings.sensitiveSites }) || (ctx?.sensitive ? { domain: '', via: 'proxy' } : null);
-  const key = sensitive ? PRIVATE_KEY : pageKey(url);
+  const key = sensitive ? PRIVATE_KEY : verdictKey(url);
   const aiVerdict = aiReady(settings) ? await cachedVerdict(settings, key) : null;
   const v = classifyPage({ url, ctx: sensitive ? null : ctx, settings, overrides, aiVerdict, sensitive });
   return { category: v.category, domain: v.domain, sensitive: Boolean(v.sensitive), internal: !v.tracked };
@@ -1734,7 +1737,7 @@ async function reviewLabelChange({ url, scope = 'page', category, tab = null }) 
   }
   const target = page?.url || url;
   const sensitive = findSensitive({ url: target, ctx: page, list: settings.sensitiveSites });
-  const aiVerdict = await cachedVerdict(settings, pageKey(target));
+  const aiVerdict = await cachedVerdict(settings, verdictKey(target));
   // A page's label is what Hackie has it as now; a site's label is the site's own rule.
   const from = sensitive
     ? 'slack'
@@ -1929,6 +1932,7 @@ function loadArt() {
 
 const HANDLERS = {
   'hackie:art': () => loadArt(),
+  'hackie:ping': () => ({ ok: true }), // extension pages check the background is running (shared/boot-check.js)
   'page:context': async (msg, sender) => {
     const tab = sender.tab;
     if (tab?.id == null) return { ok: false };

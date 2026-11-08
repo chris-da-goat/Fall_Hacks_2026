@@ -141,16 +141,29 @@ test("httpError handles Gemini's array-wrapped quota error", async () => {
 // Search result pages: the AI judges the query, never the search engine.
 const searchPage = { url: 'https://www.google.com/search?q=C%2B%2B++Linked+List+docs&sxsrf=abc', title: 'C++ linked list docs - Google Search' };
 
-test('buildUserMessage adds the search query line for search result pages', () => {
+test('buildUserMessage judges a search by its phrase only', () => {
   const msg = buildUserMessage(task, searchPage);
-  const lines = msg.split('\n');
-  const i = lines.indexOf('Search query: "c++ linked list docs" (a Google search results page: judge the query)');
-  assert.ok(i > 0, msg);
-  assert.ok(lines[i - 1].startsWith('URL: '), 'right after the URL');
-  assert.match(msg, /^Title: C\+\+ linked list docs - Google Search$/m);
+  assert.match(msg, /^A Google search results page\.$/m);
+  assert.match(msg, /^Search query: "c\+\+ linked list docs"$/m);
+  assert.match(msg, /Judge only what the user searched for\./);
+  const pagePart = msg.slice(msg.indexOf('<page>'), msg.indexOf('</page>'));
+  assert.doesNotMatch(pagePart, /Title:|URL:|Text excerpt|Main heading/, 'nothing scraped from the page');
 
-  assert.match(buildUserMessage(task, { url: 'https://duckduckgo.com/?q=funny+cats', title: 'x' }), /^Search query: "funny cats" \(a DuckDuckGo search results page: judge the query\)$/m);
-  assert.match(buildUserMessage(task, { url: 'https://www.youtube.com/results?search_query=cats', title: 'x' }), /^Search query: "cats" \(a YouTube search results page/m);
+  assert.match(buildUserMessage(task, { url: 'https://duckduckgo.com/?q=funny+cats', title: 'x' }), /^Search query: "funny cats"$/m);
+  assert.match(buildUserMessage(task, { url: 'https://www.youtube.com/results?search_query=cats', title: 'x' }), /^A YouTube search results page\.$/m);
+});
+
+test('a stale results page never leaks into a search judgment (Google swapping queries in place)', () => {
+  // The URL already says "minecraft speedrun", but the page still shows the previous search's results.
+  const stale = {
+    url: 'https://www.google.com/search?q=minecraft+speedrun',
+    title: 'mathematical induction - Google Search',
+    h1: 'Mathematical induction',
+    excerpt: 'Mathematical induction is a method for proving that a statement is true for every natural number',
+  };
+  const msg = buildUserMessage(task, stale);
+  assert.match(msg, /^Search query: "minecraft speedrun"$/m);
+  assert.doesNotMatch(msg, /induction/i);
 });
 
 test('buildUserMessage has no search query line for other pages', () => {

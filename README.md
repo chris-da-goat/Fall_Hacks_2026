@@ -56,6 +56,8 @@ No build step and no dependencies. Edit files, then click the reload icon on the
 
 ### Getting a complete copy (and sharing one)
 
+If a copy is incomplete, Hackie's popup, settings and report pages show a red **"Hackie can't start: this copy of the extension is missing files"** banner. It names the missing files and says whether the page, the background or the art is affected ([`shared/boot-check.js`](extension/shared/boot-check.js)).
+
 Load the **whole** `extension/` folder from a full download. Use `git clone` or `git pull`, or GitHub's green **Code → Download ZIP** for the repo. Don't assemble it from a pull request's changed files: a copy missing even one imported file fails with *"Service worker registration failed. Status code: 3"* and *"An unknown error occurred when fetching the script"*.
 
 To check a copy before loading it, and to make a zip to share:
@@ -73,7 +75,7 @@ The repo root's `extension.zip` is a ready-made copy built this way (Hackie 0.2.
 
 In priority order:
 
-1. **Sensitive sites** (see below) are always slacking and stay anonymous.
+1. **Private sites** (your sensitive list, see below) are always slacking and stay anonymous.
 2. **Your per-page override** ("It's for my task" or the popup's "just this page").
 3. **Search results are judged by what you searched for**, never by the search engine. Each query gets its own verdict: "c++ docs" on Google is work for a C++ task, "funny cat videos" is slacking, "weather tomorrow" is neutral. The AI judge reads the query; without it, your task and slacking keywords decide, and anything else is neutral. Site lists and site labels don't apply to search pages, so a search engine is never blocked wholesale. This covers Google, Bing, DuckDuckGo, Yahoo, Baidu, Yandex, Ecosia, Brave Search, Startpage, Kagi, Naver and YouTube search ([`lib/search.js`](extension/lib/search.js)).
 4. **Your whole-site label** (the popup's "whole site" or the Top sites pills, toward work or neutral). The AI judge's verdict on the page itself still wins, so a cat video stays slacking on a site you labeled as work.
@@ -147,7 +149,7 @@ Debug mode also has a **testing switch**, "count time even when Chrome isn't foc
 - facts the AI learned ("binges Shorts after dinner");
 - incidents: lockdowns, begging, fake comebacks, replies, label reviews, and tabs Hackie closed.
 
-Sensitive sites are only kept as an anonymous "Private site" total. Sites that are a slacking **habit** get warnings sooner: thresholds × 0.6 after 30 min of total slacking, × 0.4 after 2 h, or when flagged by you or the AI.
+Private (sensitive) sites are only kept as an anonymous "Private site" total. Sites that are a slacking **habit** get warnings sooner: thresholds × 0.6 after 30 min of total slacking, × 0.4 after 2 h, or when flagged by you or the AI.
 
 **Per-event AI** (`lib/enforcer.js`, Settings → AI): on every nudge, whip, lockdown, beg and "Back to work", a second tool-using agent gets the page snapshot (sensitive pages redacted), the situation (level, streak, snoozes, begs, habit, today) and a memory summary. It then does three things:
 
@@ -254,9 +256,9 @@ Whole-site labels toward work or neutral are judged page by page. They're stored
 - If the AI errors or is rate-limited, the change is refused and you can try again.
 - 3 tries per page or site per 10 minutes, unless one was approved.
 
-## Sensitive sites
+## Private sites
 
-Settings → **Sensitive sites** holds a list of domains that are never described to the AI. It defaults to the 2,056-domain [South Korea blocked-sites list](https://github.com/wpzzz/blocked-sites-in-south-korea/blob/main/kr.list) and is fully editable, with a "Restore the default list" button.
+Settings → **Private sites** holds your list of sensitive domains that are never described to the AI. It starts empty: add the sites you want kept private, one per line. (No list is bundled; one can be, see below.)
 
 A page counts as sensitive if:
 
@@ -269,7 +271,7 @@ On sensitive pages:
 - Nothing readable is stored. Time is logged as "Private site", never by name, in the popup and report.
 - The page counts as slacking, and "It's for my task" and the reply box are hidden. To change that, remove the site from the list.
 
-To refresh the bundled default list: `node tools/update-sensitive-list.mjs` (or pass a local file path).
+To bundle a default list: `node tools/update-sensitive-list.mjs path/to/domains.txt` (one domain per line) writes `extension/data/sensitive-sites.js`. Check a list's license before bundling it.
 
 ## Project layout
 
@@ -287,7 +289,7 @@ extension/
   lib/                     pure modules: classify, search (per-query judging), stats, defaults, lines, ai, agent, agent-tools, debug, sensitive,
                            memory, enforcer (per-event AI), anger + arbiter (refusing clicks), appeal (replies),
                            review (label review)
-  data/sensitive-sites.js  generated default sensitive list
+  data/sensitive-sites.js  bundled default private-sites list (empty for now)
   icons/                   generated PNGs
 tests/                     node:test unit tests + headless Chrome e2e
 tools/                     icons from hackie.gif (gif.mjs decoder), sensitive-list updater

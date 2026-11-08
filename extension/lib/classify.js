@@ -3,7 +3,7 @@
 
 import { CATEGORY_LABEL } from './defaults.js';
 import { PRIVATE_DOMAIN } from './sensitive.js';
-import { searchQuery } from './search.js';
+import { searchQuery, searchVerdictKey } from './search.js';
 
 // Every sensitive page shares one key, so nothing about it is stored or cached per-URL.
 export const PRIVATE_KEY = '(private)';
@@ -36,6 +36,13 @@ export function pageKey(input) {
   }
   const path = u.pathname.replace(/\/+$/, '');
   return host + path;
+}
+
+/** The key the AI judge's verdict is cached under: the search phrase for searches, else the page. */
+export function verdictKey(input) {
+  const u = toUrl(input);
+  if (!u) return '';
+  return searchVerdictKey(u) || pageKey(u);
 }
 
 function toUrl(input) {
@@ -180,12 +187,12 @@ export function classifyPage({ url, ctx = null, settings, overrides = {}, aiVerd
     const taskHits = findHits(search.query, taskKeywords(settings.task));
     const slackHits = findHits(search.query, settings.slackKeywords);
     if (taskHits.length > slackHits.length) {
-      return { ...sbase, category: 'work', source: 'search', reason: `Your search "${search.query}" matches your task (${taskHits.join(', ')}).`, needsAI: Boolean(ctx) };
+      return { ...sbase, category: 'work', source: 'search', reason: `Your search "${search.query}" matches your task (${taskHits.join(', ')}).`, needsAI: true };
     }
     if (slackHits.length) {
-      return { ...sbase, category: 'slack', source: 'search', reason: `Your search "${search.query}" looks like slacking (${slackHits.join(', ')}).`, needsAI: Boolean(ctx) };
+      return { ...sbase, category: 'slack', source: 'search', reason: `Your search "${search.query}" looks like slacking (${slackHits.join(', ')}).`, needsAI: true };
     }
-    return { ...sbase, category: 'neutral', source: 'search', reason: `A ${search.engine} search for "${search.query}". Hackie judges each search on its own.`, needsAI: Boolean(ctx) };
+    return { ...sbase, category: 'neutral', source: 'search', reason: `A ${search.engine} search for "${search.query}". Hackie judges each search on its own.`, needsAI: true };
   }
 
   // A whole-site label still gets judged page by page: the AI's verdict on this exact page wins.

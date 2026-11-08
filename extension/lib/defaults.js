@@ -176,9 +176,9 @@ export const DEFAULT_SETTINGS = {
     'shorts',
     'reels',
   ],
-  // Sites whose pages are never described to the AI judge (also catches proxies to them).
-  // Defaults to the South Korea blocked-sites list; the user can edit it freely.
-  sensitiveSites: SENSITIVE_DOMAINS,
+  // Private sites: pages never described to the AI judge (also catches proxies to them).
+  // Empty by default; the user adds their own in Settings → Private sites.
+  sensitiveSites: SENSITIVE_DOMAINS.filter(Boolean),
   intensity: 'normal',
   thresholds: {
     ...PRESETS.normal,

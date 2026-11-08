@@ -1,5 +1,7 @@
 import { formatDuration, focusScore } from '../lib/stats.js';
 
+document.documentElement.dataset.hackieReady = '1'; // all imports loaded (see shared/boot-check.js)
+
 const Hackie = globalThis.Hackie;
 const $ = (id) => document.getElementById(id);
 const fmt = (s) => formatDuration(s, { compact: true });
