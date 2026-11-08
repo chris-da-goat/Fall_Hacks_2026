@@ -59,3 +59,23 @@ export function isSearchEngine(hostname) {
   const host = String(hostname || '').toLowerCase().replace(/^www\./, '');
   return ENGINES.some((e) => e.name !== 'YouTube' && e.host.test(host));
 }
+
+/**
+ * The AI verdict key for a search: the phrase itself, shared by every engine, so an already
+ * judged phrase is reused and every new phrase gets its own judgment. null for non-search pages.
+ */
+export function searchVerdictKey(url) {
+  const s = searchQuery(url);
+  return s ? `search:${s.query}` : null;
+}
+
+/**
+ * What the AI judge sees for a search: the phrase and the engine, nothing scraped from the page.
+ * (Results pages can show stale or unrelated text, e.g. the previous search's results while
+ * Google swaps in a new query without reloading.)
+ */
+export function searchSnapshot(url) {
+  const s = searchQuery(url);
+  if (!s) return null;
+  return { url: String(url), title: `"${s.query}" - ${s.engine} search`, search: s };
+}

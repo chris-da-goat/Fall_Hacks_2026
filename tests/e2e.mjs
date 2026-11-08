@@ -9,7 +9,7 @@
 
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, existsSync, cpSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -867,6 +867,25 @@ async function main() {
     check('settings: Forget deletes exactly that one incident', gone.length === 1 && incAfter.length === incBefore.length - 1, `${incBefore.length} -> ${incAfter.length}`);
     const newest = await bg('taskwhip.memory().then((m) => m.incidents.length)');
     check('settings: the deleted incident is gone from the list too', (await evalIn(pop, `[...document.querySelectorAll('#memIncidents li.mem-inc')].length`)) === Math.min(10, newest));
+
+    // A complete copy shows no "missing files" banner; an incomplete one names what's missing.
+    await sleep(1500);
+    const healthyBanner = await evalIn(pop, `Boolean(document.getElementById('hackie-broken'))`);
+    check('a complete copy: no "missing files" banner on the settings page', healthyBanner === false);
+    const brokenRoot = mkdtempSync(join(tmpdir(), 'hackie-broken-'));
+    cpSync(EXT, join(brokenRoot, 'extension'), { recursive: true });
+    rmSync(join(brokenRoot, 'extension', 'data', 'sensitive-sites.js'));
+    const { id: brokenId } = await cdp.send('Extensions.loadUnpacked', { path: join(brokenRoot, 'extension') });
+    const { targetId: brokenT } = await cdp.send('Target.createTarget', { url: `chrome-extension://${brokenId}/options/options.html` });
+    const { sessionId: brokenS } = await cdp.send('Target.attachToTarget', { targetId: brokenT, flatten: true });
+    let brokenBanner = '';
+    for (let i = 0; i < 20 && !brokenBanner; i++) {
+      await sleep(500);
+      brokenBanner = await evalIn(brokenS, `document.getElementById('hackie-broken')?.innerText || ''`).catch(() => '');
+    }
+    check('an incomplete copy: the settings page says which file is missing', /missing files/.test(brokenBanner) && /data\/sensitive-sites\.js/.test(brokenBanner) && /background script isn't running/.test(brokenBanner), brokenBanner.replace(/\s+/g, ' ').slice(0, 160));
+    await cdp.send('Target.closeTarget', { targetId: brokenT });
+    rmSync(brokenRoot, { recursive: true, force: true });
 
     check('pages never logged extension-file loads ("Unsafe attempt to load URL")', extLoadLogs.length === 0, extLoadLogs.slice(0, 2).join(' | '));
     const errors = await bg('self.__errors || []');

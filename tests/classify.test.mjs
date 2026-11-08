@@ -283,7 +283,7 @@ test('a search unrelated to the task or to slacking is neutral and asks the AI w
 
   const noCtx = classifyPage({ url: weatherUrl, ctx: null, settings: searchSettings });
   assert.equal(noCtx.category, 'neutral');
-  assert.equal(noCtx.needsAI, false, 'no page read yet, nothing to send the AI');
+  assert.equal(noCtx.needsAI, true, 'the phrase is in the URL, so the AI can judge it right away');
 });
 
 test('task keywords beat slack keywords in a search only when there are more of them', () => {

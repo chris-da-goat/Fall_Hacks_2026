@@ -1,6 +1,8 @@
 import { formatDuration, formatClock, focusScore, topDomains } from '../lib/stats.js';
 import { CATEGORY_LABEL } from '../lib/defaults.js';
 
+document.documentElement.dataset.hackieReady = '1'; // all imports loaded (see shared/boot-check.js)
+
 const Hackie = globalThis.Hackie; // shared/mascot.js (classic script, loaded before this module)
 const $ = (id) => document.getElementById(id);
 const send = (type, payload = {}) => chrome.runtime.sendMessage({ type, ...payload });

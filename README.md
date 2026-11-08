@@ -56,6 +56,8 @@ No build step and no dependencies. Edit files, then click the reload icon on the
 
 ### Getting a complete copy (and sharing one)
 
+If a copy is incomplete, Hackie's popup, settings and report pages show a red **"Hackie can't start: this copy of the extension is missing files"** banner. It names the missing files and says whether the page, the background or the art is affected ([`shared/boot-check.js`](extension/shared/boot-check.js)).
+
 Load the **whole** `extension/` folder from a full download. Use `git clone` or `git pull`, or GitHub's green **Code → Download ZIP** for the repo. Don't assemble it from a pull request's changed files: a copy missing even one imported file fails with *"Service worker registration failed. Status code: 3"* and *"An unknown error occurred when fetching the script"*.
 
 To check a copy before loading it, and to make a zip to share:
