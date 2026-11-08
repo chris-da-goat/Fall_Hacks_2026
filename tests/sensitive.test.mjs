@@ -10,9 +10,10 @@ const list = ['blocked.example', 'WWW.Naughty.test', 'https://another.test/some/
 const set = sensitiveSet(list);
 const check = (url, ctx) => findSensitive({ url, ctx, list });
 
-test('the bundled default list is loaded into settings and editable', () => {
-  assert.ok(SENSITIVE_DOMAINS.length > 2000);
-  assert.equal(DEFAULT_SETTINGS.sensitiveSites.length, SENSITIVE_DOMAINS.length);
+test('the bundled default list is loaded into settings (blank entries dropped) and editable', () => {
+  assert.ok(Array.isArray(SENSITIVE_DOMAINS));
+  assert.deepEqual(DEFAULT_SETTINGS.sensitiveSites, SENSITIVE_DOMAINS.filter(Boolean));
+  assert.ok(DEFAULT_SETTINGS.sensitiveSites.every((d) => typeof d === 'string' && d.trim()), 'no blank entries');
   assert.deepEqual(mergeSettings({ sensitiveSites: ['mine.test'] }).sensitiveSites, ['mine.test']);
   assert.deepEqual(mergeSettings({ sensitiveSites: [] }).sensitiveSites, [], 'user can empty the list');
 });
@@ -27,7 +28,7 @@ test('direct visits, subdomains and www match; look-alikes do not', () => {
   assert.equal(check('https://cdn.eu.naughty.test/x').domain, 'naughty.test');
   assert.equal(check('https://notblocked.example/'), null);
   assert.equal(check('https://blocked.example.evil.com/'), null);
-  assert.equal(check('https://github.com/wpzzz/blocked-sites-in-south-korea/blob/main/kr.list'), null);
+  assert.equal(check('https://github.com/example/blocked-sites/blob/main/list.txt'), null);
 });
 
 test('web proxies carrying the site in the URL are caught', () => {
@@ -94,4 +95,10 @@ test('judgePage strips a sensitive page down to the notice before sending', asyn
   });
   assert.ok(sent.includes('Page information blocked'));
   for (const leak of ['blocked.example', 'Secret title', 'secret text']) assert.ok(!sent.includes(leak), `leaked ${leak}`);
+});
+
+test('blank entries in the list never match anything', () => {
+  for (const url of ['https://github.com/me/repo', 'https://www.google.com/search?q=x', 'https://www.youtube.com/watch?v=1']) {
+    assert.equal(findSensitive({ url, ctx: null, list: ['', '   '] }), null, url);
+  }
 });

@@ -154,15 +154,15 @@ test('buildUserMessage judges a search by its phrase only', () => {
 });
 
 test('a stale results page never leaks into a search judgment (Google swapping queries in place)', () => {
-  // The URL already says "porn", but the page still shows the previous search's results.
+  // The URL already says "minecraft speedrun", but the page still shows the previous search's results.
   const stale = {
-    url: 'https://www.google.com/search?q=porn',
+    url: 'https://www.google.com/search?q=minecraft+speedrun',
     title: 'mathematical induction - Google Search',
     h1: 'Mathematical induction',
     excerpt: 'Mathematical induction is a method for proving that a statement is true for every natural number',
   };
   const msg = buildUserMessage(task, stale);
-  assert.match(msg, /^Search query: "porn"$/m);
+  assert.match(msg, /^Search query: "minecraft speedrun"$/m);
   assert.doesNotMatch(msg, /induction/i);
 });
 

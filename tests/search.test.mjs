@@ -161,7 +161,7 @@ test('search verdicts are keyed by the phrase: reused across engines, new phrase
   const b = 'https://www.bing.com/search?q=c%2B%2B++docs&form=QBLH';
   assert.equal(searchVerdictKey(g), 'search:c++ docs');
   assert.equal(searchVerdictKey(g), searchVerdictKey(b), 'an already judged phrase is reused on another engine');
-  assert.notEqual(searchVerdictKey(g), searchVerdictKey('https://www.google.com/search?q=porn'), 'a new phrase gets its own verdict');
+  assert.notEqual(searchVerdictKey(g), searchVerdictKey('https://www.google.com/search?q=minecraft+speedrun'), 'a new phrase gets its own verdict');
   assert.equal(searchVerdictKey('https://www.google.com/'), null);
   assert.equal(searchVerdictKey('https://github.com/search?q=x'), null);
   // verdictKey: the phrase for searches, the page for everything else
